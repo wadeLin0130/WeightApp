@@ -747,6 +747,3 @@ function SettingsView({ profile, setProfile, user, auth }) {
     </div>
   );
 }
-
-
-```
