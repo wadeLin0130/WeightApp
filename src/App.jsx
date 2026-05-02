@@ -186,7 +186,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
   
-  const todayStr = getDateString(new Date());
+  const todayStr = useMemo(() => getDateString(new Date()), []);
   const [targetDate, setTargetDate] = useState(todayStr);
 
   const [profile, setProfile] = useState({
@@ -246,25 +246,28 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, [profile, user]);
 
-  // --- 核心資料計算 ---
-  const targetData = records[targetDate] || {};
-  const arrWeight = getArrayData(targetData, 'weight');
-  const arrWater = getArrayData(targetData, 'water');
-  const arrDiet = getArrayData(targetData, 'diet');
-  const arrEx = getArrayData(targetData, 'exercise');
+  // --- 核心資料強制獨立計算 (避免閉包與狀態殘留) ---
+  const currentData = useMemo(() => records[targetDate] || {}, [records, targetDate]);
+  
+  const arrWeight = useMemo(() => getArrayData(currentData, 'weight'), [currentData]);
+  const arrWater = useMemo(() => getArrayData(currentData, 'water'), [currentData]);
+  const arrDiet = useMemo(() => getArrayData(currentData, 'diet'), [currentData]);
+  const arrEx = useMemo(() => getArrayData(currentData, 'exercise'), [currentData]);
 
-  const latestWeight = arrWeight.length > 0 ? arrWeight[arrWeight.length - 1].value : null;
-  const totalWater = arrWater.reduce((sum, i) => sum + Number(i.value), 0);
-  const totalIntake = arrDiet.reduce((sum, d) => sum + (Number(d.calories) || 0), 0);
-  const totalExCals = arrEx.reduce((sum, ex) => sum + (Number(ex.calories) || 0), 0);
+  const latestWeight = useMemo(() => arrWeight.length > 0 ? arrWeight[arrWeight.length - 1].value : null, [arrWeight]);
+  const totalWater = useMemo(() => arrWater.reduce((sum, i) => sum + Number(i.value), 0), [arrWater]);
+  const totalIntake = useMemo(() => arrDiet.reduce((sum, d) => sum + (Number(d.calories) || 0), 0), [arrDiet]);
+  const totalExCals = useMemo(() => arrEx.reduce((sum, ex) => sum + (Number(ex.calories) || 0), 0), [arrEx]);
 
-  let prevWeight = null;
-  for(let i=1; i<=7; i++) {
-    const prevD = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
-    const prevArr = getArrayData(records[prevD], 'weight');
-    if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
-  }
-  const weightChange = (latestWeight && prevWeight) ? (latestWeight - prevWeight).toFixed(1) : null;
+  const weightChange = useMemo(() => {
+    let prevWeight = null;
+    for(let i=1; i<=7; i++) {
+      const prevD = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
+      const prevArr = getArrayData(records[prevD] || {}, 'weight');
+      if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
+    }
+    return (latestWeight && prevWeight) ? (latestWeight - prevWeight).toFixed(1) : null;
+  }, [targetDate, latestWeight, records]);
 
   const tdee = useMemo(() => {
     if (!profile.height || !profile.age) return 0;
@@ -276,7 +279,7 @@ export default function App() {
     let weekEx = 0;
     for (let i = 1; i <= 7; i++) {
       const dStr = getDateString(new Date(Date.now() - i * 86400000));
-      getArrayData(records[dStr], 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
+      getArrayData(records[dStr] || {}, 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
     }
     return Math.round((bmr * 1.2) + (weekEx / 7));
   }, [profile, latestWeight, records]);
@@ -783,7 +786,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
                     if (!date) return <div key={`e-${idx}`} className="h-[3.8rem] bg-transparent pointer-events-none"></div>;
                     
                     const dStr = getDateString(date);
-                    const dayData = records[dStr];
+                    const dayData = records[dStr] || {};
                     const arr = getArrayData(dayData, viewMode);
                     const isToday = dStr === getDateString(new Date());
                     let cellContent = null;
@@ -793,7 +796,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
                         const latestW = arr[arr.length-1].value;
                         let prevW = null;
                         for(let i=1; i<=7; i++) {
-                          const pArr = getArrayData(records[getDateString(new Date(date.getTime() - i * 86400000))], 'weight');
+                          const pArr = getArrayData(records[getDateString(new Date(date.getTime() - i * 86400000))] || {}, 'weight');
                           if(pArr.length > 0) { prevW = pArr[pArr.length-1].value; break; }
                         }
                         const diff = prevW ? (latestW - prevW).toFixed(1) : null;
