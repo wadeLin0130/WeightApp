@@ -1,4 +1,3 @@
-```react
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, TrendingUp, Settings, Home, 
