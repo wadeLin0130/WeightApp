@@ -37,7 +37,8 @@ const ShuttlecockIcon = ({ className }) => (
 
 const WeightScaleIcon = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect width="18" height="18" x="3" y="3" rx="4" /><rect width="10" height="5" x="7" y="7" rx="1" /><path d="M12 12V9" />
+    <rect width="18" height="18" x="3" y="3" rx="4" /><rect width="10" height="5" x="7" y="7" rx="1" />
+    <path d="M12 12V9" />
   </svg>
 );
 
@@ -126,6 +127,59 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
     </div>
   );
 };
+
+// --- 儀表板小月曆元件 ---
+function DashboardDatePicker({ initialDate, onSelect }) {
+  const [viewDate, setViewDate] = useState(new Date(initialDate));
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const days = Array(firstDay).fill(null).concat(Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1)));
+
+  const years = Array.from({length: 10}, (_, i) => new Date().getFullYear() - 5 + i);
+  const months = Array.from({length: 12}, (_, i) => i);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center bg-[#F9F8F6] p-2 rounded-2xl border border-[#E8E4DF]">
+        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="p-2 text-[#8C8477] hover:bg-[#EFECE7] rounded-xl transition-colors active:scale-90"><ChevronLeft className="w-5 h-5"/></button>
+        <div className="flex gap-2">
+          <div className="relative flex items-center bg-white border border-[#E8E4DF] rounded-xl px-1 shadow-sm">
+            <select value={year} onChange={(e) => setViewDate(new Date(Number(e.target.value), month, 1))} className="appearance-none bg-transparent py-2 pl-3 pr-6 outline-none text-[#5C5C5C] text-sm font-medium">
+              {years.map(y => <option key={y} value={y}>{y} 年</option>)}
+            </select>
+            <div className="absolute right-2 pointer-events-none text-[#A89F91] text-[10px]">▼</div>
+          </div>
+          <div className="relative flex items-center bg-white border border-[#E8E4DF] rounded-xl px-1 shadow-sm">
+            <select value={month} onChange={(e) => setViewDate(new Date(year, Number(e.target.value), 1))} className="appearance-none bg-transparent py-2 pl-3 pr-6 outline-none text-[#5C5C5C] text-sm font-medium">
+              {months.map(m => <option key={m} value={m}>{String(m + 1).padStart(2, '0')} 月</option>)}
+            </select>
+            <div className="absolute right-2 pointer-events-none text-[#A89F91] text-[10px]">▼</div>
+          </div>
+        </div>
+        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-2 text-[#8C8477] hover:bg-[#EFECE7] rounded-xl transition-colors active:scale-90"><ChevronRight className="w-5 h-5"/></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5 text-center mb-2 px-1">
+        {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className="text-[10px] text-[#C2BCB6] tracking-widest font-medium">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1.5 px-1 pb-4">
+        {days.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const dStr = getDateString(d);
+          const isTarget = dStr === initialDate;
+          const isToday = dStr === getDateString(new Date());
+          return (
+            <button key={i} onClick={() => onSelect(dStr)} className={`aspect-square flex items-center justify-center rounded-xl text-xs transition-all active:scale-90 ${isTarget ? 'bg-[#8C8477] text-white font-medium shadow-md' : isToday ? 'border-2 border-[#D6D0C4] text-[#8C8477] font-medium bg-[#F9F8F6]' : 'text-[#5C5C5C] hover:bg-[#EFECE7] border border-transparent'}`}>
+              {d.getDate()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -232,15 +286,16 @@ export default function App() {
     const dataObj = records[dateStr] || {};
     const hasData = getArrayData(dataObj, category).length > 0;
     if (hasData) {
-      setModalState({ view: 'list', category });
+      setModalState({ view: 'list', category, dateStr });
     } else {
-      if (category === 'diet' || category === 'exercise') setModalState({ view: 'select', category });
-      else setModalState({ view: 'calc', category });
+      if (category === 'diet' || category === 'exercise') setModalState({ view: 'select', category, dateStr });
+      else setModalState({ view: 'calc', category, dateStr });
     }
   };
 
   const handleSaveData = async (category, dataObj) => {
-    const currentDayData = records[targetDate] || {};
+    const operateDate = modalState?.dateStr || targetDate;
+    const currentDayData = records[operateDate] || {};
     const arr = getArrayData(currentDayData, category);
     let newArr;
 
@@ -251,29 +306,30 @@ export default function App() {
     }
     
     const updated = { ...currentDayData, [category]: newArr };
-    setRecords(prev => ({...prev, [targetDate]: updated}));
+    setRecords(prev => ({...prev, [operateDate]: updated}));
     setModalState(null);
 
     if (user) {
       setIsSyncing(true);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', targetDate), updated, { merge: true }).catch(()=>{});
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), updated, { merge: true }).catch(()=>{});
       setIsSyncing(false);
     }
   };
 
   const handleDeleteData = async (category, id) => {
-    const currentDayData = records[targetDate] || {};
+    const operateDate = modalState?.dateStr || targetDate;
+    const currentDayData = records[operateDate] || {};
     const arr = getArrayData(currentDayData, category);
     const newArr = arr.filter(item => item.id !== id);
     const updated = { ...currentDayData, [category]: newArr };
     
-    setRecords(prev => ({...prev, [targetDate]: updated}));
+    setRecords(prev => ({...prev, [operateDate]: updated}));
     
     if (newArr.length === 0) setModalState(null);
 
     if (user) {
       setIsSyncing(true);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', targetDate), updated, { merge: true }).catch(()=>{});
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), updated, { merge: true }).catch(()=>{});
       setIsSyncing(false);
     }
   };
@@ -336,13 +392,18 @@ export default function App() {
   // --- 畫面渲染 ---
   const renderHome = () => (
     <div className="p-6 space-y-4 animate-in fade-in duration-500 pb-28">
-      {targetDate !== todayStr && (
-        <div className="flex items-center justify-between bg-[#F9F8F6] p-3 rounded-2xl border border-[#E8E4DF]">
-          <span className="text-[10px] text-[#A89F91] font-medium tracking-widest flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5" /> 歷史紀錄</span>
-          <span className="text-xs font-medium text-[#5C5C5C] tracking-wider">{targetDate.replace(/-/g, '.')}</span>
-          <button onClick={() => setTargetDate(todayStr)} className="text-[9px] tracking-widest bg-white border border-[#F0ECE7] px-2 py-1 rounded-lg text-[#8C8477] active:scale-95">回今日</button>
-        </div>
-      )}
+      {/* 儀表板：可點擊的頂部日期區域 */}
+      <div className="flex items-center justify-between bg-white p-3.5 rounded-3xl border border-[#F0ECE7] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+        <button onClick={() => setModalState({ view: 'datepicker' })} className="flex items-center gap-2.5 text-[#5C5C5C] font-medium tracking-wider text-sm active:scale-95 transition-transform">
+          <div className="w-8 h-8 rounded-xl bg-[#F9F8F6] flex items-center justify-center border border-[#E8E4DF]">
+            <CalendarIcon className="w-4 h-4 text-[#8C8477] stroke-[1.5]" />
+          </div>
+          {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
+        </button>
+        {targetDate !== todayStr && (
+          <button onClick={() => setTargetDate(todayStr)} className="text-[10px] tracking-widest bg-[#F9F8F6] border border-[#E8E4DF] px-3 py-1.5 rounded-xl text-[#8C8477] active:scale-95 transition-all font-medium">回今日</button>
+        )}
+      </div>
 
       <div className="bg-[#EFECE7] rounded-3xl p-6 shadow-sm border border-[#E8E4DF] relative overflow-hidden">
         <div className="relative z-10 flex justify-between items-start">
@@ -392,7 +453,10 @@ export default function App() {
 
   const renderModals = () => {
     if (!modalState) return null;
-    const { view, category, item } = modalState;
+    const { view, category, item, dateStr } = modalState;
+    const operateDate = dateStr || targetDate; // 優先使用從月曆點擊的日期，否則使用儀表板日期
+    const targetDataForModal = records[operateDate] || {};
+    
     const isDiet = category === 'diet';
     const isEx = category === 'exercise';
 
@@ -411,9 +475,18 @@ export default function App() {
       </div>
     );
 
+    // 0. 儀表板專屬選擇日期小月曆
+    if (view === 'datepicker') {
+      return (
+        <ModalLayout title="選擇日期">
+          <DashboardDatePicker initialDate={targetDate} onSelect={(d) => { setTargetDate(d); setModalState(null); }} />
+        </ModalLayout>
+      );
+    }
+
     // 1. 列表視圖
     if (view === 'list') {
-      const arr = getArrayData(targetData, category);
+      const arr = getArrayData(targetDataForModal, category);
       const catConfig = {
         weight: { unit: 'kg', name: '體重紀錄' }, water: { unit: 'ml', name: '飲水紀錄' },
         diet: { unit: 'kcal', name: '飲食紀錄' }, exercise: { unit: 'kcal', name: '運動紀錄' }
@@ -427,14 +500,14 @@ export default function App() {
                 key={record.id}
                 record={record}
                 onDelete={(id) => handleDeleteData(category, id)}
-                onEdit={(rec) => setModalState({ view: 'calc', category, item: rec })}
+                onEdit={(rec) => setModalState({ view: 'calc', category, item: rec, dateStr: operateDate })}
                 isDiet={isDiet}
                 isEx={isEx}
                 catConfig={catConfig}
               />
             ))}
           </div>
-          <button onClick={() => setModalState({ view: (isDiet || isEx) ? 'select' : 'calc', category })} className="absolute bottom-6 right-6 w-14 h-14 bg-[#8C8477] text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(140,132,119,0.4)] active:scale-90 transition-transform">
+          <button onClick={() => setModalState({ view: (isDiet || isEx) ? 'select' : 'calc', category, dateStr: operateDate })} className="absolute bottom-6 right-6 w-14 h-14 bg-[#8C8477] text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(140,132,119,0.4)] active:scale-90 transition-transform">
             <Plus className="w-6 h-6 stroke-[1.5]" />
           </button>
         </ModalLayout>
@@ -446,15 +519,15 @@ export default function App() {
       const cards = isDiet ? profile.dietCards : profile.exerciseCards;
       const colorClass = isDiet ? 'text-[#9AA899] bg-[#EEF2ED] border-[#D6E0D5]' : 'text-[#C4A495] bg-[#F7EFEA] border-[#E8D9D1]';
       return (
-        <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetData, category).length > 0 && setModalState({view: 'list', category})}>
+        <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
           <div className="grid grid-cols-3 gap-3">
             {cards.map(card => (
-              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name } })} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border bg-white active:bg-gray-50 transition-colors shadow-sm ${colorClass.replace('bg-','border-').replace('text-','').split(' ')[2]}`}>
+              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border bg-white active:bg-gray-50 transition-colors shadow-sm ${colorClass.replace('bg-','border-').replace('text-','').split(' ')[2]}`}>
                 <DynamicIcon name={card.icon} className={`w-6 h-6 stroke-[1.5] ${colorClass.split(' ')[0]}`} />
                 <span className="text-[10px] font-medium text-[#5C5C5C]">{card.name}</span>
               </button>
             ))}
-            <button onClick={() => setModalState({ view: 'new_card', category })} className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed border-[#D6D0C4] bg-white text-[#A89F91] active:bg-[#F9F8F6]">
+            <button onClick={() => setModalState({ view: 'new_card', category, dateStr: operateDate })} className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed border-[#D6D0C4] bg-white text-[#A89F91] active:bg-[#F9F8F6]">
               <Plus className="w-5 h-5 stroke-[1.5]" />
               <span className="text-[9px] tracking-widest">新增</span>
             </button>
@@ -472,7 +545,7 @@ export default function App() {
       else if (isEx) { title = `消耗 (kcal)`; initial = String(item?.calories || ''); showDec = false; }
 
       return (
-        <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category})}>
+        <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
           {(isDiet || isEx) && (
             <div className="mb-4">
               <label className="text-[10px] tracking-widest text-[#8C8477] mb-2 block">項目名稱</label>
@@ -493,7 +566,7 @@ export default function App() {
     if (view === 'new_card') {
       const availableIcons = isDiet ? ['Coffee','Apple','Pizza','Carrot','Fish','Beef','Utensils'] : ['Activity','Dumbbell','Flame','Bike','Shuttlecock','HeartPulse','Target'];
       return (
-        <ModalLayout title="新增專屬卡片" onBack={() => setModalState({view: 'select', category})}>
+        <ModalLayout title="新增專屬卡片" onBack={() => setModalState({view: 'select', category, dateStr: operateDate})}>
           <form onSubmit={(e) => {
             e.preventDefault();
             const name = e.target.cardName.value;
@@ -502,7 +575,7 @@ export default function App() {
             const newCard = { id: Date.now().toString(), name, icon };
             if(isDiet) setProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
             else setProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
-            setModalState({view: 'select', category});
+            setModalState({view: 'select', category, dateStr: operateDate});
           }} className="space-y-5">
             <div>
               <label className="text-[10px] tracking-widest text-[#8C8477] mb-2 block">名稱</label>
@@ -542,7 +615,7 @@ export default function App() {
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
         {activeTab === 'home' && renderHome()}
-        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { setTargetDate(d); setActiveTab('home'); openCategoryFlow(mode, d); }} />}
+        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
         {activeTab === 'trend' && <TrendChart records={records} />}
         {activeTab === 'settings' && <SettingsView profile={profile} setProfile={setProfile} user={user} auth={auth} />}
       </main>
@@ -570,42 +643,109 @@ function NavButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
-// --- 月曆元件 (滑動切換) ---
+// --- 月曆元件 (動態滑動與5個月預載) ---
 function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
   const [viewMode, setViewMode] = useState(initialMode);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const touchStartRef = useRef(null);
+  // 以當月1號作為基準定位
+  const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const swipeContainerRef = useRef(null);
+
+  const shiftMonth = (delta) => {
+    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+  };
+
+  useEffect(() => {
+    const el = swipeContainerRef.current;
+    if (!el) return;
+    
+    let startX = 0, startY = 0;
+    let lock = null; // 'horizontal' | 'vertical' | null
+    let dx = 0;
+
+    const onTouchStart = (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      lock = null;
+      dx = 0;
+      el.style.transition = 'none';
+    };
+
+    const onTouchMove = (e) => {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      dx = currentX - startX;
+      const dy = currentY - startY;
+
+      // 當還沒有決定方向鎖定時，用初始滑動的 x/y 偏移量決定
+      if (!lock) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5) lock = 'horizontal';
+        else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) lock = 'vertical';
+      }
+
+      // 如果鎖定為橫向，則不允許原生垂直滑動，並改變畫面
+      if (lock === 'horizontal') {
+        if (e.cancelable) e.preventDefault(); 
+        // 5個月等比，-40% 代表第3個月（正中央當前月）
+        el.style.transform = `translateX(calc(-40% + ${dx}px))`;
+      }
+      // 若鎖定為垂直，則甚麼都不做，讓瀏覽器原生接管滾動頁面
+    };
+
+    const onTouchEnd = () => {
+      if (lock === 'horizontal') {
+        el.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        
+        if (dx > 60) {
+          // 往右滑動過閾值 -> 切至上個月 (-20%)
+          el.style.transform = `translateX(-20%)`;
+          setTimeout(() => {
+            el.style.transition = 'none';
+            el.style.transform = `translateX(-40%)`; // 瞬間彈回中央
+            shiftMonth(-1); // 背後資料瞬間改變
+          }, 300);
+        } else if (dx < -60) {
+          // 往左滑動過閾值 -> 切至下個月 (-60%)
+          el.style.transform = `translateX(-60%)`;
+          setTimeout(() => {
+            el.style.transition = 'none';
+            el.style.transform = `translateX(-40%)`;
+            shiftMonth(1);
+          }, 300);
+        } else {
+          // 未達閾值，彈回原位
+          el.style.transform = `translateX(-40%)`;
+        }
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, []);
+
+  // 動態預先產生包含當前月份在內的 前後共 5 個月的資料 [-2, -1, 0, 1, 2]
+  const monthsData = useMemo(() => {
+    return [-2, -1, 0, 1, 2].map(offset => {
+      const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDay = new Date(year, month, 1).getDay();
+      const days = Array(firstDay).fill(null).concat(Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1)));
+      return { id: `${year}-${month}`, year, month, days };
+    });
+  }, [currentMonth]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDay = new Date(year, month, 1).getDay();
-  const days = Array(firstDay).fill(null).concat(Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1)));
-
-  // 處理左右動態滑動手勢
-  const handleTouchStart = (e) => {
-    touchStartRef.current = e.touches[0].clientX;
-    setIsSwiping(true);
-  };
-  const handleTouchMove = (e) => {
-    if (touchStartRef.current === null) return;
-    const deltaX = e.touches[0].clientX - touchStartRef.current;
-    setSwipeOffset(deltaX);
-  };
-  const handleTouchEnd = () => {
-    if (touchStartRef.current === null) return;
-    setIsSwiping(false);
-    if (swipeOffset > 80) { // 向右滑，上個月
-      setCurrentMonth(new Date(year, month - 1, 1));
-    } else if (swipeOffset < -80) { // 向左滑，下個月
-      setCurrentMonth(new Date(year, month + 1, 1));
-    }
-    setSwipeOffset(0);
-    touchStartRef.current = null;
-  };
 
   return (
     <div className="p-6 pb-28 animate-in fade-in duration-500 overflow-hidden">
@@ -619,69 +759,72 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
       </div>
 
       <div className="flex justify-between items-center mb-5 px-1">
-        <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90"><ChevronLeft className="w-4 h-4" /></button>
+        <button onClick={() => shiftMonth(-1)} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90 transition-transform"><ChevronLeft className="w-4 h-4" /></button>
         <h2 className="text-xs font-medium tracking-[0.2em] text-[#5C5C5C]">{year} . {String(month + 1).padStart(2, '0')}</h2>
-        <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => shiftMonth(1)} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90 transition-transform"><ChevronRight className="w-4 h-4" /></button>
       </div>
 
-      {/* 將滑動手勢綁在包含星期和日期的網格上 */}
-      <div 
-        onTouchStart={handleTouchStart} 
-        onTouchMove={handleTouchMove} 
-        onTouchEnd={handleTouchEnd}
-        style={{
-          transform: `translateX(${swipeOffset}px)`,
-          transition: isSwiping ? 'none' : 'transform 0.3s ease-out'
-        }}
-        className="w-full touch-pan-y"
-      >
+      <div className="w-full relative">
         <div className="grid grid-cols-7 gap-1.5 mb-2">
           {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className="text-center text-[9px] tracking-widest font-medium text-[#C2BCB6]">{d}</div>)}
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5">
-          {days.map((date, idx) => {
-            if (!date) return <div key={`e-${idx}`} className="h-[3.8rem] bg-transparent"></div>;
-            
-            const dStr = getDateString(date);
-            const dayData = records[dStr];
-            const arr = getArrayData(dayData, viewMode);
-            const isToday = dStr === getDateString(new Date());
-            let cellContent = null;
+        {/* 利用負邊距 (negative margin) 向右延伸，並在每個月份右側加上 padding，創造視覺上的完美間距 */}
+        <div className="-mr-6">
+          <div 
+            ref={swipeContainerRef} 
+            className="flex w-[500%] will-change-transform touch-pan-y" 
+            style={{ transform: 'translateX(-40%)' }}
+          >
+            {monthsData.map((mData) => (
+              <div key={mData.id} className="w-1/5 shrink-0 pr-6">
+                <div className="grid grid-cols-7 gap-1.5">
+                  {mData.days.map((date, idx) => {
+                    if (!date) return <div key={`e-${idx}`} className="h-[3.8rem] bg-transparent pointer-events-none"></div>;
+                    
+                    const dStr = getDateString(date);
+                    const dayData = records[dStr];
+                    const arr = getArrayData(dayData, viewMode);
+                    const isToday = dStr === getDateString(new Date());
+                    let cellContent = null;
 
-            if (arr.length > 0) {
-              if (viewMode === 'weight') {
-                const latestW = arr[arr.length-1].value;
-                let prevW = null;
-                for(let i=1; i<=7; i++) {
-                  const pArr = getArrayData(records[getDateString(new Date(date.getTime() - i * 86400000))], 'weight');
-                  if(pArr.length > 0) { prevW = pArr[pArr.length-1].value; break; }
-                }
-                const diff = prevW ? (latestW - prevW).toFixed(1) : null;
-                let diffEl = null;
-                if (diff !== null) {
-                  const nDiff = Number(diff);
-                  if (nDiff > 0) diffEl = <span className="text-[8px] text-[#9AA899] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
-                  else if (nDiff < 0) diffEl = <span className="text-[8px] text-[#C78D87] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
-                  else diffEl = <span className="text-[8px] text-[#C2BCB6] font-light mt-0.5">- 0.0</span>;
-                }
-                cellContent = <div className="flex flex-col items-center"><span className="font-medium text-[#5C5C5C] text-[11px] leading-none">{latestW}</span>{diffEl}</div>;
-              } else if (viewMode === 'diet') {
-                const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
-                cellContent = <span className="text-[10px] font-medium text-[#9AA899]">{cals > 0 ? cals : '✓'}</span>;
-              } else if (viewMode === 'exercise') {
-                const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
-                cellContent = <span className="text-[10px] font-medium text-[#C4A495]">{cals > 0 ? cals : '✓'}</span>;
-              }
-            }
+                    if (arr.length > 0) {
+                      if (viewMode === 'weight') {
+                        const latestW = arr[arr.length-1].value;
+                        let prevW = null;
+                        for(let i=1; i<=7; i++) {
+                          const pArr = getArrayData(records[getDateString(new Date(date.getTime() - i * 86400000))], 'weight');
+                          if(pArr.length > 0) { prevW = pArr[pArr.length-1].value; break; }
+                        }
+                        const diff = prevW ? (latestW - prevW).toFixed(1) : null;
+                        let diffEl = null;
+                        if (diff !== null) {
+                          const nDiff = Number(diff);
+                          if (nDiff > 0) diffEl = <span className="text-[8px] text-[#9AA899] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
+                          else if (nDiff < 0) diffEl = <span className="text-[8px] text-[#C78D87] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
+                          else diffEl = <span className="text-[8px] text-[#C2BCB6] font-light mt-0.5">- 0.0</span>;
+                        }
+                        cellContent = <div className="flex flex-col items-center"><span className="font-medium text-[#5C5C5C] text-[11px] leading-none">{latestW}</span>{diffEl}</div>;
+                      } else if (viewMode === 'diet') {
+                        const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
+                        cellContent = <span className="text-[10px] font-medium text-[#9AA899]">{cals > 0 ? cals : '✓'}</span>;
+                      } else if (viewMode === 'exercise') {
+                        const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
+                        cellContent = <span className="text-[10px] font-medium text-[#C4A495]">{cals > 0 ? cals : '✓'}</span>;
+                      }
+                    }
 
-            return (
-              <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`h-[3.8rem] rounded-[10px] p-1 flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] border-[#D6D0C4]' : 'bg-white border-[#F0ECE7]'}`}>
-                <span className={`text-[8px] font-medium mb-1 ${isToday ? 'text-[#8C8477]' : 'text-[#A89F91]'}`}>{date.getDate()}</span>
-                <div className="flex-1 flex items-center justify-center">{cellContent}</div>
-              </button>
-            );
-          })}
+                    return (
+                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`h-[3.8rem] rounded-[10px] p-1 flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] border-[#D6D0C4]' : 'bg-white border-[#F0ECE7]'}`}>
+                        <span className={`text-[8px] font-medium mb-1 ${isToday ? 'text-[#8C8477]' : 'text-[#A89F91]'}`}>{date.getDate()}</span>
+                        <div className="flex-1 flex items-center justify-center pointer-events-none">{cellContent}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       <p className="text-center text-[9px] text-[#C2BCB6] mt-6 tracking-widest font-light">點擊日期即可查看或編輯紀錄，左右滑動可切換月份</p>
