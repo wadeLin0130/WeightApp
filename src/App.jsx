@@ -8,12 +8,27 @@ import {
 
 // --- Firebase 初始化 ---
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, signOut } from 'firebase/auth';
+// 修改重點：正確引入 signInWithPopup 確保登入視窗能彈出
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-const firebaseConfig = typeof __firebase_config !== 'undefined' 
-  ? JSON.parse(__firebase_config) 
-  : { apiKey: "", authDomain: "", projectId: "", appId: "" };
+// 完美雙棲配置：自動判斷當前環境
+let firebaseConfig;
+if (typeof __firebase_config !== 'undefined') {
+  // 1. 如果在右側預覽環境，自動使用測試環境金鑰避免報錯
+  firebaseConfig = JSON.parse(__firebase_config);
+} else {
+  // 2. 如果在 Vercel 部署上線，使用你專屬的真實金鑰
+  firebaseConfig = {
+    apiKey: "AIzaSyBHtWTHEXuSrZBnB4gzh2N7ZvzSVSmjWgg",
+    authDomain: "myweightapp-281cb.firebaseapp.com",
+    projectId: "myweightapp-281cb",
+    storageBucket: "myweightapp-281cb.firebasestorage.app",
+    messagingSenderId: "476667742331",
+    appId: "1:476667742331:web:09feb9c64766c0c9e1fade",
+    measurementId: "G-Q5EK8KZ85T"
+  };
+}
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -49,7 +64,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [activeModal, setActiveModal] = useState(null); 
   
-  // 新增：目標日期 (用於修改過去資料)
+  // 目標日期 (用於修改過去資料)
   const todayStr = getDateString(new Date());
   const [targetDate, setTargetDate] = useState(todayStr);
 
@@ -58,8 +73,7 @@ export default function App() {
     height: 165,
     age: 30,
     gender: 'female',
-    customTDEE: '', // 新增：自訂 TDEE
-    // 預設飲食卡片
+    customTDEE: '', 
     dietCards: [
       { id: 'custom', name: '自行輸入', icon: 'Plus' },
       { id: 'bf', name: '早餐', icon: 'Coffee' },
@@ -67,7 +81,6 @@ export default function App() {
       { id: 'dn', name: '晚餐', icon: 'Utensils' },
       { id: 'sn', name: '點心', icon: 'Apple' }
     ],
-    // 預設運動卡片
     exerciseCards: [
       { id: 'custom', name: '自行輸入', icon: 'Plus' },
       { id: 'bd', name: '羽球', icon: 'Activity' },
@@ -83,12 +96,14 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        // 安全登入機制
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && typeof __firebase_config !== 'undefined') {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
           if (!auth.currentUser) await signInAnonymously(auth);
         }
       } catch (error) {
+        console.error("驗證失敗:", error);
         if (!auth.currentUser) await signInAnonymously(auth).catch(()=>console.log("匿名登入失敗"));
       }
     };
@@ -104,13 +119,13 @@ export default function App() {
 
     const unsubProfile = onSnapshot(profileRef, (docSnap) => {
       if (docSnap.exists()) setProfile(prev => ({ ...prev, ...docSnap.data() }));
-    });
+    }, (error) => console.error("設定同步錯誤:", error));
 
     const unsubRecords = onSnapshot(recordsRef, (snapshot) => {
       const newRecords = {}; 
       snapshot.forEach(doc => newRecords[doc.id] = doc.data());
       setRecords(newRecords);
-    });
+    }, (error) => console.error("紀錄同步錯誤:", error));
 
     return () => { unsubProfile(); unsubRecords(); };
   }, [user]);
@@ -134,12 +149,11 @@ export default function App() {
   const nutritionStats = useMemo(() => {
     if (!profile.height || !profile.age) return null;
     
-    // 計算 TDEE (自訂優先 > 公式計算)
     let finalTDEE = 0;
     if (profile.customTDEE && Number(profile.customTDEE) > 0) {
       finalTDEE = Number(profile.customTDEE);
     } else {
-      const weight = targetData.weight || 60; // 若當天無體重，預設 60 避免出錯
+      const weight = targetData.weight || 60; 
       let bmr = 10 * weight + 6.25 * profile.height - 5 * profile.age;
       bmr += (profile.gender === 'male' ? 5 : -161);
 
@@ -168,11 +182,9 @@ export default function App() {
     if (type === 'diet') updated.diet = [...(updated.diet || []), data];
     if (type === 'exercise') updated.exercise = [...(updated.exercise || []), data];
     
-    // 先更新本地畫面 (Optimistic UI)
     setRecords(prev => ({...prev, [targetDate]: updated}));
     setActiveModal(null);
 
-    // 有使用者才上傳雲端
     if (user) {
       setIsSyncing(true);
       try {
@@ -194,11 +206,10 @@ export default function App() {
       if (val === 'DEL') { setExpr(prev => prev.slice(0, -1)); return; }
       if (val === '=') {
         try {
-          // 替換符號並安全計算
           const cleanExpr = expr.replace(/×/g, '*').replace(/÷/g, '/');
           // eslint-disable-next-line no-new-func
           const result = new Function(`'use strict'; return (${cleanExpr})`)();
-          setExpr(String(Math.round(result * 100) / 100)); // 取小數後兩位
+          setExpr(String(Math.round(result * 100) / 100)); 
         } catch (e) { setExpr('Error'); setTimeout(() => setExpr(''), 1000); }
         return;
       }
@@ -208,7 +219,6 @@ export default function App() {
 
     const handleConfirm = () => {
       let finalVal = expr;
-      // 如果包含運算符號，先計算再存
       if (/[+×÷\-]/.test(expr)) {
         try {
           const cleanExpr = expr.replace(/×/g, '*').replace(/÷/g, '/');
@@ -226,7 +236,7 @@ export default function App() {
       'C', '0', showDecimals ? '.' : 'DEL', '+'
     ];
 
-    if (!showDecimals) buttons[14] = 'DEL'; // 若不需要小數點(如熱量)，替換為刪除鍵
+    if (!showDecimals) buttons[14] = 'DEL'; 
 
     return (
       <div className="flex flex-col gap-4">
@@ -257,7 +267,6 @@ export default function App() {
   // --- 首頁渲染 ---
   const renderHome = () => (
     <div className="p-6 space-y-5 animate-in fade-in duration-500 pb-28">
-      {/* 日期提示 (如果是看過去紀錄) */}
       {targetDate !== todayStr && (
         <div className="flex items-center justify-between bg-[#F9F8F6] p-3 rounded-2xl border border-[#E8E4DF]">
           <span className="text-xs text-[#A89F91] font-medium tracking-widest flex items-center gap-2">
@@ -268,7 +277,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 頂部大卡片 */}
       <div className="bg-[#EFECE7] rounded-3xl p-7 shadow-sm border border-[#E8E4DF] relative overflow-hidden">
         <div className="relative z-10 flex justify-between items-start">
           <div>
@@ -292,7 +300,6 @@ export default function App() {
         )}
       </div>
 
-      {/* 紀錄卡片網格 */}
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => setActiveModal('weight')} className="bg-white p-5 rounded-3xl border border-[#F0ECE7] flex flex-col items-start gap-3 active:scale-95 transition-transform">
           <div className="w-10 h-10 rounded-2xl bg-[#F5F2EB] flex items-center justify-center">
@@ -339,7 +346,6 @@ export default function App() {
 
   const renderSettings = () => (
     <div className="p-6 space-y-6 animate-in fade-in duration-500 pb-28">
-      {/* 基本設定 */}
       <div className="bg-white rounded-3xl p-6 border border-[#F0ECE7] space-y-5">
         <h2 className="text-sm font-medium text-[#5C5C5C] tracking-widest flex items-center gap-2 mb-4">
           <Settings className="w-4 h-4 text-[#C2BCB6]" /> 基本設定
@@ -371,7 +377,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 隱私與帳號 */}
       <div className="bg-white rounded-3xl p-6 border border-[#F0ECE7] space-y-5">
         <h2 className="text-sm font-medium text-[#5C5C5C] tracking-widest flex items-center gap-2 mb-2">
           <ShieldCheck className="w-4 h-4 text-[#C2BCB6]" /> 隱私與同步
@@ -390,7 +395,7 @@ export default function App() {
             <button onClick={() => { signOut(auth); window.location.reload(); }} className="w-full py-3 bg-[#F9F8F6] text-[#A89F91] rounded-xl text-xs font-medium tracking-widest border border-[#F0ECE7] active:scale-95">登出</button>
           </div>
         ) : (
-          <button onClick={() => { signInWithRedirect(auth, new GoogleAuthProvider()).catch(err => console.error(err)); }} className="w-full py-3 bg-[#8C8477] text-white rounded-xl text-xs font-medium tracking-widest active:scale-95 mt-2">
+          <button onClick={() => { signInWithPopup(auth, new GoogleAuthProvider()).catch(err => console.error("登入失敗:", err)); }} className="w-full py-3 bg-[#8C8477] text-white rounded-xl text-xs font-medium tracking-widest active:scale-95 mt-2">
             綁定 GOOGLE 帳號以永久保存
           </button>
         )}
@@ -398,7 +403,6 @@ export default function App() {
     </div>
   );
 
-  // --- 彈出視窗與多卡片流程 ---
   const ModalOverlay = ({ title, icon: Icon, colorClass, onBack, children }) => (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/30 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl animate-in slide-in-from-bottom-10 border border-[#F0ECE7] max-h-[90vh] overflow-y-auto">
@@ -425,7 +429,6 @@ export default function App() {
   const renderModals = () => {
     if (!activeModal) return null;
 
-    // 體重計算機
     if (activeModal === 'weight') {
       return (
         <ModalOverlay title="紀錄體重" icon={WeightScaleIcon} colorClass={{bg: 'bg-[#F5F2EB]', text: 'text-[#A89F91]'}}>
@@ -434,7 +437,6 @@ export default function App() {
       );
     }
 
-    // 飲水計算機
     if (activeModal === 'water') {
       return (
         <ModalOverlay title="補充水分" icon={Droplets} colorClass={{bg: 'bg-[#EDF1F4]', text: 'text-[#93A3B1]'}}>
@@ -448,7 +450,6 @@ export default function App() {
       );
     }
 
-    // 飲食 - 卡片選擇
     if (activeModal === 'diet_select') {
       return (
         <ModalOverlay title="選擇飲食項目" icon={Utensils} colorClass={{bg: 'bg-[#EEF2ED]', text: 'text-[#9AA899]'}}>
@@ -459,7 +460,6 @@ export default function App() {
                 <span className="text-xs font-medium text-[#5C5C5C]">{card.name}</span>
               </button>
             ))}
-            {/* 新增卡片按鈕 */}
             <button onClick={() => setActiveModal('new_diet_card')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed border-[#D6D0C4] bg-white text-[#A89F91] active:bg-[#F9F8F6]">
               <Plus className="w-5 h-5" />
               <span className="text-[10px] tracking-widest">新增選項</span>
@@ -469,7 +469,6 @@ export default function App() {
       );
     }
 
-    // 運動 - 卡片選擇
     if (activeModal === 'exercise_select') {
       return (
         <ModalOverlay title="選擇運動項目" icon={Flame} colorClass={{bg: 'bg-[#F7EFEA]', text: 'text-[#C4A495]'}}>
@@ -489,7 +488,6 @@ export default function App() {
       );
     }
 
-    // 飲食 / 運動 - 計算機與儲存
     if (activeModal.startsWith('diet_calc_') || activeModal.startsWith('exercise_calc_')) {
       const isDiet = activeModal.startsWith('diet_calc_');
       const itemName = activeModal.replace(isDiet ? 'diet_calc_' : 'exercise_calc_', '');
@@ -511,7 +509,6 @@ export default function App() {
       );
     }
 
-    // 新增自訂卡片 (共用介面)
     if (activeModal === 'new_diet_card' || activeModal === 'new_ex_card') {
       const isDiet = activeModal === 'new_diet_card';
       const availableIcons = isDiet ? ['Coffee', 'Apple', 'Pizza', 'Carrot', 'Fish', 'Beef'] : ['Activity', 'Dumbbell', 'Flame', 'Bike', 'HeartPulse', 'Zap'];
@@ -554,18 +551,16 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto h-[100dvh] flex flex-col bg-[#F7F5F2] font-sans text-[#4A4A4A] overflow-hidden shadow-2xl relative">
-      {/* 頂部導覽列 */}
       <header className="bg-[#F7F5F2]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] sticky top-0">
         <div className="text-xs font-medium text-[#5C5C5C] tracking-[0.2em] uppercase flex items-center gap-2">
           {activeTab === 'home' && 'Dashboard'}
           {activeTab === 'calendar' && 'Calendar'}
           {activeTab === 'trend' && 'Analytics'}
           {activeTab === 'settings' && 'Profile'}
-          {isSyncing ? <Cloud className="w-3 h-3 text-[#C4A495] animate-pulse" /> : user ? <Cloud className="w-3 h-3 text-[#9AA899]" /> : <CloudOff className="w-3 h-3 text-[#C2BCB6]" />}
+          {isSyncing ? <Cloud className="w-3 h-3 text-[#C4A495] animate-pulse" /> : user && !user.isAnonymous ? <Cloud className="w-3 h-3 text-[#9AA899]" /> : <CloudOff className="w-3 h-3 text-[#C2BCB6]" />}
         </div>
       </header>
 
-      {/* 主要內容區 */}
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
         {activeTab === 'home' && renderHome()}
         {activeTab === 'calendar' && <CalendarView records={records} targetDate={targetDate} onSelectDate={(d) => { setTargetDate(d); setActiveTab('home'); }} />}
@@ -573,7 +568,6 @@ export default function App() {
         {activeTab === 'settings' && renderSettings()}
       </main>
 
-      {/* 底部導覽列 */}
       <nav className="bg-[#F7F5F2]/95 backdrop-blur-md border-t border-[#EBE8E3] px-2 pt-2 pb-6 flex justify-around items-center fixed bottom-0 w-full max-w-md z-40">
         <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Home} label="首頁" />
         <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={CalendarIcon} label="月曆" />
@@ -581,13 +575,11 @@ export default function App() {
         <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="設定" />
       </nav>
 
-      {/* 浮動視窗 */}
       {renderModals()}
     </div>
   );
 }
 
-// 底部按鈕元件
 function NavButton({ active, onClick, icon: Icon, label }) {
   return (
     <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 p-2 w-16 bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] -translate-y-1' : 'text-[#C2BCB6] hover:text-[#A89F91]'}`}>
@@ -598,7 +590,6 @@ function NavButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
-// 月曆元件
 function CalendarView({ records, targetDate, onSelectDate }) {
   const [viewMode, setViewMode] = useState('weight');
   const [currentMonth, setCurrentMonth] = useState(new Date(targetDate));
@@ -654,7 +645,6 @@ function CalendarView({ records, targetDate, onSelectDate }) {
           if (dayData) {
             if (viewMode === 'weight' && dayData.weight) {
               let prevWeight = null;
-              // 往回找最近一次有體重紀錄的日期 (最多找7天)
               for(let i=1; i<=7; i++) {
                 const prevD = getDateString(new Date(date.getTime() - i * 86400000));
                 if(records[prevD] && records[prevD].weight) {
@@ -667,7 +657,6 @@ function CalendarView({ records, targetDate, onSelectDate }) {
               if (diff !== null) {
                 const nDiff = Number(diff);
                 if (nDiff > 0) {
-                  // 綠漲 (莫蘭迪鼠尾草綠 #9AA899)
                   diffEl = (
                     <span className="text-[8px] text-[#9AA899] font-medium flex items-center mt-0.5 gap-[1.5px]">
                       <svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>
@@ -675,7 +664,6 @@ function CalendarView({ records, targetDate, onSelectDate }) {
                     </span>
                   );
                 } else if (nDiff < 0) {
-                  // 紅跌 (莫蘭迪玫瑰紅 #C78D87)
                   diffEl = (
                     <span className="text-[8px] text-[#C78D87] font-medium flex items-center mt-0.5 gap-[1.5px]">
                       <svg width="6" height="6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>
@@ -683,7 +671,6 @@ function CalendarView({ records, targetDate, onSelectDate }) {
                     </span>
                   );
                 } else {
-                  // 持平
                   diffEl = <span className="text-[8px] text-[#C2BCB6] font-light flex items-center mt-0.5">- 0.0</span>;
                 }
               }
@@ -716,7 +703,6 @@ function CalendarView({ records, targetDate, onSelectDate }) {
   );
 }
 
-// 趨勢圖表元件
 function TrendChart({ records }) {
   const weightData = Object.entries(records)
     .filter(([_, data]) => data.weight)
