@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar as CalendarIcon, TrendingUp, Settings, Home, 
   Flame, Utensils, Droplets, X, Plus, ChevronLeft, ChevronRight, CheckCircle2,
@@ -186,7 +186,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
   
-  const todayStr = useMemo(() => getDateString(new Date()), []);
+  const todayStr = getDateString(new Date());
   const [targetDate, setTargetDate] = useState(todayStr);
 
   const [profile, setProfile] = useState({
@@ -246,43 +246,53 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, [profile, user]);
 
-  // --- 核心資料強制獨立計算 (避免閉包與狀態殘留) ---
-  const currentData = useMemo(() => records[targetDate] || {}, [records, targetDate]);
+  // --- 核心資料強制獨立計算 (移除容易導致快取臭蟲的 useMemo) ---
+  const currentData = records[targetDate] || {};
   
-  const arrWeight = useMemo(() => getArrayData(currentData, 'weight'), [currentData]);
-  const arrWater = useMemo(() => getArrayData(currentData, 'water'), [currentData]);
-  const arrDiet = useMemo(() => getArrayData(currentData, 'diet'), [currentData]);
-  const arrEx = useMemo(() => getArrayData(currentData, 'exercise'), [currentData]);
+  const arrWeight = getArrayData(currentData, 'weight');
+  const arrWater = getArrayData(currentData, 'water');
+  const arrDiet = getArrayData(currentData, 'diet');
+  const arrEx = getArrayData(currentData, 'exercise');
 
-  const latestWeight = useMemo(() => arrWeight.length > 0 ? arrWeight[arrWeight.length - 1].value : null, [arrWeight]);
-  const totalWater = useMemo(() => arrWater.reduce((sum, i) => sum + Number(i.value), 0), [arrWater]);
-  const totalIntake = useMemo(() => arrDiet.reduce((sum, d) => sum + (Number(d.calories) || 0), 0), [arrDiet]);
-  const totalExCals = useMemo(() => arrEx.reduce((sum, ex) => sum + (Number(ex.calories) || 0), 0), [arrEx]);
+  const latestWeightForToday = arrWeight.length > 0 ? arrWeight[arrWeight.length - 1].value : null;
+  const totalWater = arrWater.reduce((sum, i) => sum + Number(i.value), 0);
+  const totalIntake = arrDiet.reduce((sum, d) => sum + (Number(d.calories) || 0), 0);
+  const totalExCals = arrEx.reduce((sum, ex) => sum + (Number(ex.calories) || 0), 0);
 
-  const weightChange = useMemo(() => {
-    let prevWeight = null;
-    for(let i=1; i<=7; i++) {
-      const prevD = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
-      const prevArr = getArrayData(records[prevD] || {}, 'weight');
-      if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
+  // 尋找「當前真實的最新體重」（往前推30天），用來保證 TDEE 可以被正確計算
+  let trueLatestWeight = null;
+  for (let i = 0; i <= 30; i++) {
+    const dStr = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
+    const wArr = getArrayData(records[dStr] || {}, 'weight');
+    if (wArr.length > 0) { 
+      trueLatestWeight = Number(wArr[wArr.length - 1].value); 
+      break; 
     }
-    return (latestWeight && prevWeight) ? (latestWeight - prevWeight).toFixed(1) : null;
-  }, [targetDate, latestWeight, records]);
+  }
 
-  const tdee = useMemo(() => {
-    if (!profile.height || !profile.age) return 0;
-    if (profile.customTDEE && Number(profile.customTDEE) > 0) return Number(profile.customTDEE);
-    
-    let bmr = 10 * (latestWeight || 60) + 6.25 * profile.height - 5 * profile.age;
-    bmr += (profile.gender === 'male' ? 5 : -161);
-    
-    let weekEx = 0;
-    for (let i = 1; i <= 7; i++) {
-      const dStr = getDateString(new Date(Date.now() - i * 86400000));
-      getArrayData(records[dStr] || {}, 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
+  let prevWeight = null;
+  for(let i=1; i<=7; i++) {
+    const prevD = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
+    const prevArr = getArrayData(records[prevD] || {}, 'weight');
+    if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
+  }
+  const weightChange = (latestWeightForToday && prevWeight) ? (latestWeightForToday - prevWeight).toFixed(1) : null;
+
+  let tdee = 0;
+  if (profile.height && profile.age) {
+    if (profile.customTDEE && Number(profile.customTDEE) > 0) {
+      tdee = Number(profile.customTDEE);
+    } else {
+      let bmr = 10 * (trueLatestWeight || 60) + 6.25 * profile.height - 5 * profile.age;
+      bmr += (profile.gender === 'male' ? 5 : -161);
+      let weekEx = 0;
+      for (let i = 1; i <= 7; i++) {
+        const dStr = getDateString(new Date(Date.now() - i * 86400000));
+        getArrayData(records[dStr] || {}, 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
+      }
+      tdee = Math.round((bmr * 1.2) + (weekEx / 7));
     }
-    return Math.round((bmr * 1.2) + (weekEx / 7));
-  }, [profile, latestWeight, records]);
+  }
 
   // --- 操作流程 ---
   const openCategoryFlow = (category, dateStr = targetDate) => {
@@ -413,7 +423,7 @@ export default function App() {
           <div>
             <p className="text-[#8C8477] text-[9px] tracking-widest font-medium mb-1">WEIGHT</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-5xl font-light text-[#4A4A4A] tracking-tight">{latestWeight || '--'}</span>
+              <span className="text-5xl font-light text-[#4A4A4A] tracking-tight">{latestWeightForToday || '--'}</span>
               <span className="text-sm text-[#8C8477] font-light">kg</span>
             </div>
             {weightChange && (
@@ -435,7 +445,7 @@ export default function App() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: latestWeight ? `${latestWeight} kg` : '未紀錄', bg: 'bg-[#F5F2EB]', color: 'text-[#A89F91]' },
+          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: latestWeightForToday ? `${latestWeightForToday} kg` : '未紀錄', bg: 'bg-[#F5F2EB]', color: 'text-[#A89F91]' },
           { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4]', color: 'text-[#93A3B1]' },
           { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED]', color: 'text-[#9AA899]' },
           { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA]', color: 'text-[#C4A495]' }
