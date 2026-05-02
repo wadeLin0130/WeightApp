@@ -13,17 +13,15 @@ import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, 
 import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 // 優先使用環境變數中的 __firebase_config (這樣在 Canvas 測試環境才能正常拿到權限)
-const firebaseConfig = typeof __firebase_config !== 'undefined' 
-  ? JSON.parse(__firebase_config) 
-  : {
-      apiKey: "AIzaSyBHtWTHEXuSrZBnB4gzh2N7ZvzSVSmjWgg",
-      authDomain: "myweightapp-281cb.firebaseapp.com",
-      projectId: "myweightapp-281cb",
-      storageBucket: "myweightapp-281cb.firebasestorage.app",
-      messagingSenderId: "476667742331",
-      appId: "1:476667742331:web:09feb9c64766c0c9e1fade",
-      measurementId: "G-Q5EK8KZ85T"
-    };
+const firebaseConfig = {
+  apiKey: "AIzaSyBHtWTHEXuSrZBnB4gzh2N7ZvzSVSmjWgg",
+  authDomain: "myweightapp-281cb.firebaseapp.com",
+  projectId: "myweightapp-281cb",
+  storageBucket: "myweightapp-281cb.firebasestorage.app",
+  messagingSenderId: "476667742331",
+  appId: "1:476667742331:web:09feb9c64766c0c9e1fade",
+  measurementId: "G-Q5EK8KZ85T"
+};
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 // 為了避免在某些環境缺少測量 ID 報錯，加上 try/catch 或判斷
