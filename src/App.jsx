@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar as CalendarIcon, TrendingUp, Settings, Home, 
   Flame, Utensils, Droplets, X, Plus, ChevronLeft, ChevronRight, CheckCircle2,
@@ -94,6 +94,9 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
     }
   };
 
+  // 完美相容舊版資料的 value 欄位
+  const displayValue = record.calories ?? record.value ?? 0;
+
   return (
     <div className="relative w-full mb-3 rounded-2xl overflow-hidden touch-pan-y bg-[#C78D87]">
       <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center">
@@ -120,8 +123,8 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
           {!(isDiet || isEx) && <span className="text-xs font-medium text-[#5C5C5C]">紀錄數值</span>}
         </div>
         <div className="flex items-baseline gap-1 pointer-events-none">
-          <span className="text-sm font-medium text-[#5C5C5C]">{record.value || record.calories || 0}</span>
-          {Number(record.value || record.calories) > 0 && <span className="text-[9px] text-[#A89F91] font-light">{catConfig.unit}</span>}
+          <span className="text-sm font-medium text-[#5C5C5C]">{displayValue}</span>
+          {Number(displayValue) > 0 && <span className="text-[9px] text-[#A89F91] font-light">{catConfig.unit}</span>}
         </div>
       </div>
     </div>
@@ -185,26 +188,11 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
+  const [isInitialLoad, setIsInitialLoad] = useState(true); 
   
-  // 動態更新今日日期，防止手機 PWA 在背景休眠跨日後不更新的問題
-  const [todayStr, setTodayStr] = useState(() => getDateString(new Date()));
+  const todayStrRef = useRef(getDateString(new Date()));
+  const [todayStr, setTodayStr] = useState(todayStrRef.current);
   const [targetDate, setTargetDate] = useState(todayStr);
-
-  useEffect(() => {
-    const checkDate = () => {
-      const nowStr = getDateString(new Date());
-      if (todayStr !== nowStr) {
-        setTodayStr(nowStr);
-        setTargetDate(prev => prev === todayStr ? nowStr : prev);
-      }
-    };
-    window.addEventListener('focus', checkDate);
-    const interval = setInterval(checkDate, 60000); // 每分鐘檢查一次跨日
-    return () => {
-      window.removeEventListener('focus', checkDate);
-      clearInterval(interval);
-    };
-  }, [todayStr]);
 
   const [profile, setProfile] = useState({
     height: 165, age: 30, gender: 'female', customTDEE: '', 
@@ -225,7 +213,29 @@ export default function App() {
 
   const [records, setRecords] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
-  const [profileLoaded, setProfileLoaded] = useState(false); // 標記雲端資料是否已載入
+
+  // --- 手機網頁/PWA 喚醒偵測 ---
+  useEffect(() => {
+    const handleWake = () => {
+      const newToday = getDateString(new Date());
+      if (todayStrRef.current !== newToday) {
+        setTargetDate(prev => prev === todayStrRef.current ? newToday : prev);
+        todayStrRef.current = newToday;
+        setTodayStr(newToday);
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleWake();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleWake);
+    window.addEventListener('pageshow', handleWake); // 加強 iOS Safari 的回上一頁/喚醒偵測
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleWake);
+      window.removeEventListener('pageshow', handleWake);
+    };
+  }, []);
 
   // --- Firebase 邏輯 ---
   useEffect(() => {
@@ -243,69 +253,100 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) { setRecords({}); setProfileLoaded(false); return; }
+    if (!user) { setRecords({}); setIsInitialLoad(false); return; }
     const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'health_records');
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
 
-    const unsubProfile = onSnapshot(profileRef, (snap) => { 
-      if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() })); 
-      setProfileLoaded(true); // 標記雲端資料已經回來了
-    });
+    const unsubProfile = onSnapshot(profileRef, (snap) => { if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() })); });
     const unsubRecords = onSnapshot(recordsRef, (snap) => {
-      const newRec = {}; snap.forEach(doc => newRec[doc.id] = doc.data()); setRecords(newRec);
+      const newRec = {}; snap.forEach(doc => newRec[doc.id] = doc.data()); 
+      setRecords(newRec);
+      setIsInitialLoad(false);
     });
     return () => { unsubProfile(); unsubRecords(); };
   }, [user]);
 
-  // 避免 Race Condition：只有雲端資料載入後，才允許自動存檔
   useEffect(() => {
-    if (!user || !profile.age || !profileLoaded) return;
+    if (!user || !profile.age || isInitialLoad) return;
     const timeoutId = setTimeout(async () => {
       setIsSyncing(true);
       await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), profile, { merge: true }).catch(()=>{});
       setIsSyncing(false);
     }, 1500); 
     return () => clearTimeout(timeoutId);
-  }, [profile, user, profileLoaded]);
+  }, [profile, user, isInitialLoad]);
 
-  // --- 核心資料強制獨立計算 ---
-  const currentData = useMemo(() => records[targetDate] || {}, [records, targetDate]);
+  // ============================================================================
+  // --- 核心資料強制獨立計算 (完全拔除快取 useMemo，確保畫面永遠不會卡住) ---
+  // ============================================================================
+  const currentData = records[targetDate] || {};
   
-  const arrWeight = useMemo(() => getArrayData(currentData, 'weight'), [currentData]);
-  const arrWater = useMemo(() => getArrayData(currentData, 'water'), [currentData]);
-  const arrDiet = useMemo(() => getArrayData(currentData, 'diet'), [currentData]);
-  const arrEx = useMemo(() => getArrayData(currentData, 'exercise'), [currentData]);
+  const arrWeight = getArrayData(currentData, 'weight');
+  const arrWater = getArrayData(currentData, 'water');
+  const arrDiet = getArrayData(currentData, 'diet');
+  const arrEx = getArrayData(currentData, 'exercise');
 
-  const latestWeight = useMemo(() => arrWeight.length > 0 ? arrWeight[arrWeight.length - 1].value : null, [arrWeight]);
-  const totalWater = useMemo(() => arrWater.reduce((sum, i) => sum + Number(i.value), 0), [arrWater]);
-  const totalIntake = useMemo(() => arrDiet.reduce((sum, d) => sum + (Number(d.calories) || 0), 0), [arrDiet]);
-  const totalExCals = useMemo(() => arrEx.reduce((sum, ex) => sum + (Number(ex.calories) || 0), 0), [arrEx]);
-
-  const weightChange = useMemo(() => {
-    let prevWeight = null;
-    for(let i=1; i<=7; i++) {
-      const prevD = getDateString(new Date(new Date(targetDate).getTime() - i * 86400000));
-      const prevArr = getArrayData(records[prevD] || {}, 'weight');
-      if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
+  // 最新體重（自動往前回溯）
+  let latestWeight = null;
+  if (arrWeight.length > 0) {
+    latestWeight = arrWeight[arrWeight.length - 1].value;
+  } else {
+    const sortedDates = Object.keys(records).sort((a, b) => b.localeCompare(a));
+    for (let d of sortedDates) {
+      if (d < targetDate) {
+        const wArr = getArrayData(records[d], 'weight');
+        if (wArr.length > 0) {
+          latestWeight = wArr[wArr.length - 1].value;
+          break;
+        }
+      }
     }
-    return (latestWeight && prevWeight) ? (latestWeight - prevWeight).toFixed(1) : null;
-  }, [targetDate, latestWeight, records]);
+  }
 
-  const tdee = useMemo(() => {
-    if (!profile.height || !profile.age) return 0;
-    if (profile.customTDEE && Number(profile.customTDEE) > 0) return Number(profile.customTDEE);
-    
-    let bmr = 10 * (latestWeight || 60) + 6.25 * profile.height - 5 * profile.age;
-    bmr += (profile.gender === 'male' ? 5 : -161);
-    
-    let weekEx = 0;
-    const targetTime = new Date(targetDate).getTime();
-    for (let i = 1; i <= 7; i++) {
-      const dStr = getDateString(new Date(targetTime - i * 86400000));
-      getArrayData(records[dStr] || {}, 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
+  // 總熱量與水量計算 (相容新舊資料結構)
+  const totalWater = arrWater.reduce((sum, i) => sum + Number(i.value), 0);
+  const totalIntake = arrDiet.reduce((sum, d) => sum + (Number(d.calories ?? d.value) || 0), 0);
+  const totalExCals = arrEx.reduce((sum, ex) => sum + (Number(ex.calories ?? ex.value) || 0), 0);
+
+  // 體重變化計算
+  let weightChange = null;
+  let prevWeight = null;
+  const targetDObj = new Date(targetDate);
+  for(let i = 1; i <= 7; i++) {
+    const pastObj = new Date(targetDObj);
+    pastObj.setDate(pastObj.getDate() - i);
+    const prevArr = getArrayData(records[getDateString(pastObj)] || {}, 'weight');
+    if(prevArr.length > 0) { 
+      prevWeight = prevArr[prevArr.length - 1].value; 
+      break; 
     }
-    return Math.round((bmr * 1.2) + (weekEx / 7));
-  }, [profile, latestWeight, records, targetDate]);
+  }
+  if (latestWeight && prevWeight) {
+    weightChange = (latestWeight - prevWeight).toFixed(2);
+  }
+
+  // TDEE 計算 (相容新舊資料結構)
+  let tdee = 0;
+  if (profile.height && profile.age) {
+    if (profile.customTDEE && Number(profile.customTDEE) > 0) {
+      tdee = Number(profile.customTDEE);
+    } else {
+      let bmr = 10 * Number(latestWeight || 60) + 6.25 * Number(profile.height) - 5 * Number(profile.age);
+      bmr += (profile.gender === 'male' ? 5 : -161);
+      
+      let weekEx = 0;
+      for (let i = 1; i <= 7; i++) {
+        const pastObj = new Date(targetDObj);
+        pastObj.setDate(pastObj.getDate() - i);
+        const dStr = getDateString(pastObj);
+        getArrayData(records[dStr] || {}, 'exercise').forEach(ex => {
+          weekEx += (Number(ex.calories ?? ex.value) || 0);
+        });
+      }
+      tdee = Math.round((bmr * 1.2) + (weekEx / 7));
+    }
+  }
+  // ============================================================================
 
   // --- 操作流程 ---
   const openCategoryFlow = (category, dateStr = targetDate) => {
@@ -458,7 +499,7 @@ export default function App() {
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: latestWeight ? `${latestWeight} kg` : '未紀錄', bg: 'bg-[#F5F2EB]', color: 'text-[#A89F91]' },
+          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB]', color: 'text-[#A89F91]' },
           { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4]', color: 'text-[#93A3B1]' },
           { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED]', color: 'text-[#9AA899]' },
           { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA]', color: 'text-[#C4A495]' }
@@ -480,7 +521,7 @@ export default function App() {
   const renderModals = () => {
     if (!modalState) return null;
     const { view, category, item, dateStr } = modalState;
-    const operateDate = dateStr || targetDate; // 優先使用從月曆點擊的日期，否則使用儀表板日期
+    const operateDate = dateStr || targetDate; 
     const targetDataForModal = records[operateDate] || {};
     
     const isDiet = category === 'diet';
@@ -501,7 +542,6 @@ export default function App() {
       </div>
     );
 
-    // 0. 儀表板專屬選擇日期小月曆
     if (view === 'datepicker') {
       return (
         <ModalLayout title="選擇日期">
@@ -510,7 +550,6 @@ export default function App() {
       );
     }
 
-    // 1. 列表視圖
     if (view === 'list') {
       const arr = getArrayData(targetDataForModal, category);
       const catConfig = {
@@ -540,7 +579,6 @@ export default function App() {
       );
     }
 
-    // 2. 選擇卡片視圖
     if (view === 'select') {
       const cards = isDiet ? profile.dietCards : profile.exerciseCards;
       const colorClass = isDiet ? 'text-[#9AA899] bg-[#EEF2ED] border-[#D6E0D5]' : 'text-[#C4A495] bg-[#F7EFEA] border-[#E8D9D1]';
@@ -562,13 +600,12 @@ export default function App() {
       );
     }
 
-    // 3. 計算機視圖
     if (view === 'calc') {
       let title = '', initial = '', showDec = true;
       if (category === 'weight') { title = '體重 (kg)'; initial = String(item?.value || ''); }
       else if (category === 'water') { title = '飲水量 (ml)'; initial = String(item?.value || ''); showDec = false; }
-      else if (isDiet) { title = `熱量 (kcal)`; initial = String(item?.calories || ''); showDec = false; }
-      else if (isEx) { title = `消耗 (kcal)`; initial = String(item?.calories || ''); showDec = false; }
+      else if (isDiet) { title = `熱量 (kcal)`; initial = String(item?.calories ?? item?.value ?? ''); showDec = false; }
+      else if (isEx) { title = `消耗 (kcal)`; initial = String(item?.calories ?? item?.value ?? ''); showDec = false; }
 
       return (
         <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
@@ -588,7 +625,6 @@ export default function App() {
       );
     }
 
-    // 4. 新增選項卡片
     if (view === 'new_card') {
       const availableIcons = isDiet ? ['Coffee','Apple','Pizza','Carrot','Fish','Beef','Utensils'] : ['Activity','Dumbbell','Flame','Bike','Shuttlecock','HeartPulse','Target'];
       return (
@@ -640,10 +676,19 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
-        {activeTab === 'home' && renderHome()}
-        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
-        {activeTab === 'trend' && <TrendChart records={records} />}
-        {activeTab === 'settings' && <SettingsView profile={profile} setProfile={setProfile} user={user} auth={auth} />}
+        {isInitialLoad ? (
+          <div className="flex flex-col items-center justify-center h-full text-[#C2BCB6] pb-20">
+            <Activity className="w-8 h-8 animate-spin mb-4 stroke-[1.5] text-[#8C8477]" />
+            <p className="text-[10px] tracking-widest font-medium">資料同步中</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'home' && renderHome()}
+            {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
+            {activeTab === 'trend' && <TrendChart records={records} />}
+            {activeTab === 'settings' && <SettingsView profile={profile} setProfile={setProfile} user={user} auth={auth} />}
+          </>
+        )}
       </main>
 
       <nav className="bg-[#F7F5F2]/95 backdrop-blur-md border-t border-[#EBE8E3] px-2 pt-2 pb-6 flex justify-around items-center fixed bottom-0 w-full max-w-md z-40">
@@ -669,10 +714,9 @@ function NavButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
-// --- 月曆元件 (動態滑動與5個月預載) ---
+// --- 月曆元件 ---
 function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
   const [viewMode, setViewMode] = useState(initialMode);
-  // 以當月1號作為基準定位
   const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const swipeContainerRef = useRef(null);
 
@@ -685,7 +729,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
     if (!el) return;
     
     let startX = 0, startY = 0;
-    let lock = null; // 'horizontal' | 'vertical' | null
+    let lock = null;
     let dx = 0;
 
     const onTouchStart = (e) => {
@@ -702,19 +746,15 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
       dx = currentX - startX;
       const dy = currentY - startY;
 
-      // 當還沒有決定方向鎖定時，用初始滑動的 x/y 偏移量決定
       if (!lock) {
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5) lock = 'horizontal';
         else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) lock = 'vertical';
       }
 
-      // 如果鎖定為橫向，則不允許原生垂直滑動，並改變畫面
       if (lock === 'horizontal') {
         if (e.cancelable) e.preventDefault(); 
-        // 5個月等比，-40% 代表第3個月（正中央當前月）
         el.style.transform = `translateX(calc(-40% + ${dx}px))`;
       }
-      // 若鎖定為垂直，則甚麼都不做，讓瀏覽器原生接管滾動頁面
     };
 
     const onTouchEnd = () => {
@@ -722,15 +762,13 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
         el.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
         
         if (dx > 60) {
-          // 往右滑動過閾值 -> 切至上個月 (-20%)
           el.style.transform = `translateX(-20%)`;
           setTimeout(() => {
             el.style.transition = 'none';
-            el.style.transform = `translateX(-40%)`; // 瞬間彈回中央
-            shiftMonth(-1); // 背後資料瞬間改變
+            el.style.transform = `translateX(-40%)`; 
+            shiftMonth(-1); 
           }, 300);
         } else if (dx < -60) {
-          // 往左滑動過閾值 -> 切至下個月 (-60%)
           el.style.transform = `translateX(-60%)`;
           setTimeout(() => {
             el.style.transition = 'none';
@@ -738,7 +776,6 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
             shiftMonth(1);
           }, 300);
         } else {
-          // 未達閾值，彈回原位
           el.style.transform = `translateX(-40%)`;
         }
       }
@@ -757,8 +794,8 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
     };
   }, []);
 
-  // 動態預先產生包含當前月份在內的 前後共 5 個月的資料 [-2, -1, 0, 1, 2]
-  const monthsData = useMemo(() => {
+  // 此處不需要拔除 useMemo，因為沒有跟最新狀態互動的問題
+  const monthsData = React.useMemo(() => {
     return [-2, -1, 0, 1, 2].map(offset => {
       const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
       const year = d.getFullYear();
@@ -795,7 +832,6 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
           {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className="text-center text-[9px] tracking-widest font-medium text-[#C2BCB6]">{d}</div>)}
         </div>
 
-        {/* 利用負邊距 (negative margin) 向右延伸，並在每個月份右側加上 padding，創造視覺上的完美間距 */}
         <div className="-mr-6">
           <div 
             ref={swipeContainerRef} 
@@ -822,20 +858,20 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
                           const pArr = getArrayData(records[getDateString(new Date(date.getTime() - i * 86400000))] || {}, 'weight');
                           if(pArr.length > 0) { prevW = pArr[pArr.length-1].value; break; }
                         }
-                        const diff = prevW ? (latestW - prevW).toFixed(1) : null;
+                        const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          if (nDiff > 0) diffEl = <span className="text-[8px] text-[#9AA899] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
-                          else if (nDiff < 0) diffEl = <span className="text-[8px] text-[#C78D87] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(1)}</span>;
-                          else diffEl = <span className="text-[8px] text-[#C2BCB6] font-light mt-0.5">- 0.0</span>;
+                          if (nDiff > 0) diffEl = <span className="text-[8px] text-[#9AA899] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else if (nDiff < 0) diffEl = <span className="text-[8px] text-[#C78D87] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else diffEl = <span className="text-[8px] text-[#C2BCB6] font-light mt-0.5">- 0.00</span>;
                         }
                         cellContent = <div className="flex flex-col items-center"><span className="font-medium text-[#5C5C5C] text-[11px] leading-none">{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
-                        const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
+                        const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         cellContent = <span className="text-[10px] font-medium text-[#9AA899]">{cals > 0 ? cals : '✓'}</span>;
                       } else if (viewMode === 'exercise') {
-                        const cals = arr.reduce((s, a) => s + (Number(a.calories)||0), 0);
+                        const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         cellContent = <span className="text-[10px] font-medium text-[#C4A495]">{cals > 0 ? cals : '✓'}</span>;
                       }
                     }
@@ -858,11 +894,11 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
   );
 }
 
-// --- 趨勢圖表 (純 SVG 極簡版) ---
+// --- 趨勢圖表 ---
 function TrendChart({ records }) {
-  const [range, setRange] = useState('1M'); // '1M', '3M', '6M', '12M', 'ALL'
+  const [range, setRange] = useState('1M'); 
   
-  const weightData = useMemo(() => {
+  const weightData = React.useMemo(() => {
     const data = [];
     Object.entries(records).forEach(([date, dayData]) => {
       const arr = getArrayData(dayData, 'weight');
@@ -890,21 +926,15 @@ function TrendChart({ records }) {
   }
 
   const weights = weightData.map(d => d.weight);
+  
   let minW = Math.floor(Math.min(...weights));
   let maxW = Math.ceil(Math.max(...weights));
-  
-  // 為了保證 Y 軸中位數也是整數，讓差距為偶數
-  if (maxW === minW) {
-    minW -= 1;
-    maxW += 1;
-  }
-  if ((maxW - minW) % 2 !== 0) {
-    minW -= 1;
-  }
+  if (maxW === minW) { minW -= 1; maxW += 1; }
+  if ((maxW - minW) % 2 !== 0) { maxW += 1; }
 
   const width = 320;
   const height = 180;
-  const paddingX = 26; // 加大邊距，確保 3 位數不會超出畫布
+  const paddingX = 20; 
   const paddingY = 25;
 
   const points = weightData.map((d, i) => ({
@@ -937,11 +967,11 @@ function TrendChart({ records }) {
           <svg width={width} height={height} className="mx-auto overflow-visible">
             {[0, 0.5, 1].map(r => {
               const y = paddingY + r * (height - paddingY * 2);
-              const val = Math.round(maxW - r * (maxW - minW)); // 強制整數
+              const val = Math.round(maxW - r * (maxW - minW));
               return (
                 <g key={`y-${r}`}>
                   <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#F0ECE7" strokeWidth="1" strokeDasharray="3 3" />
-                  <text x={paddingX - 5} y={y + 3} fontSize="8" fill="#C2BCB6" textAnchor="end" className="font-light">{val}</text>
+                  <text x={paddingX - 6} y={y + 3} fontSize="8" fill="#C2BCB6" textAnchor="end" className="font-light">{val}</text>
                 </g>
               );
             })}
@@ -954,9 +984,6 @@ function TrendChart({ records }) {
             ))}
 
             <polyline points={polylinePoints} fill="none" stroke="#C4A495" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            {points.map((p, i) => (
-              <circle key={`pt-${i}`} cx={p.x} cy={p.y} r="2.5" fill="#FFFFFF" stroke="#C4A495" strokeWidth="1.5" />
-            ))}
           </svg>
         </div>
       </div>
