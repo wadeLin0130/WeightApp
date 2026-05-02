@@ -186,8 +186,25 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
   
-  const todayStr = useMemo(() => getDateString(new Date()), []);
+  // 動態更新今日日期，防止手機 PWA 在背景休眠跨日後不更新的問題
+  const [todayStr, setTodayStr] = useState(() => getDateString(new Date()));
   const [targetDate, setTargetDate] = useState(todayStr);
+
+  useEffect(() => {
+    const checkDate = () => {
+      const nowStr = getDateString(new Date());
+      if (todayStr !== nowStr) {
+        setTodayStr(nowStr);
+        setTargetDate(prev => prev === todayStr ? nowStr : prev);
+      }
+    };
+    window.addEventListener('focus', checkDate);
+    const interval = setInterval(checkDate, 60000); // 每分鐘檢查一次跨日
+    return () => {
+      window.removeEventListener('focus', checkDate);
+      clearInterval(interval);
+    };
+  }, [todayStr]);
 
   const [profile, setProfile] = useState({
     height: 165, age: 30, gender: 'female', customTDEE: '', 
@@ -208,6 +225,7 @@ export default function App() {
 
   const [records, setRecords] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false); // 標記雲端資料是否已載入
 
   // --- Firebase 邏輯 ---
   useEffect(() => {
@@ -225,28 +243,32 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) { setRecords({}); return; }
+    if (!user) { setRecords({}); setProfileLoaded(false); return; }
     const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'health_records');
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
 
-    const unsubProfile = onSnapshot(profileRef, (snap) => { if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() })); });
+    const unsubProfile = onSnapshot(profileRef, (snap) => { 
+      if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() })); 
+      setProfileLoaded(true); // 標記雲端資料已經回來了
+    });
     const unsubRecords = onSnapshot(recordsRef, (snap) => {
       const newRec = {}; snap.forEach(doc => newRec[doc.id] = doc.data()); setRecords(newRec);
     });
     return () => { unsubProfile(); unsubRecords(); };
   }, [user]);
 
+  // 避免 Race Condition：只有雲端資料載入後，才允許自動存檔
   useEffect(() => {
-    if (!user || !profile.age) return;
+    if (!user || !profile.age || !profileLoaded) return;
     const timeoutId = setTimeout(async () => {
       setIsSyncing(true);
       await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), profile, { merge: true }).catch(()=>{});
       setIsSyncing(false);
     }, 1500); 
     return () => clearTimeout(timeoutId);
-  }, [profile, user]);
+  }, [profile, user, profileLoaded]);
 
-  // --- 核心資料強制獨立計算 (避免閉包與狀態殘留) ---
+  // --- 核心資料強制獨立計算 ---
   const currentData = useMemo(() => records[targetDate] || {}, [records, targetDate]);
   
   const arrWeight = useMemo(() => getArrayData(currentData, 'weight'), [currentData]);
@@ -277,12 +299,13 @@ export default function App() {
     bmr += (profile.gender === 'male' ? 5 : -161);
     
     let weekEx = 0;
+    const targetTime = new Date(targetDate).getTime();
     for (let i = 1; i <= 7; i++) {
-      const dStr = getDateString(new Date(Date.now() - i * 86400000));
+      const dStr = getDateString(new Date(targetTime - i * 86400000));
       getArrayData(records[dStr] || {}, 'exercise').forEach(ex => weekEx += (Number(ex.calories) || 0));
     }
     return Math.round((bmr * 1.2) + (weekEx / 7));
-  }, [profile, latestWeight, records]);
+  }, [profile, latestWeight, records, targetDate]);
 
   // --- 操作流程 ---
   const openCategoryFlow = (category, dateStr = targetDate) => {
@@ -867,11 +890,21 @@ function TrendChart({ records }) {
   }
 
   const weights = weightData.map(d => d.weight);
-  const minW = Math.floor(Math.min(...weights) - 1);
-  const maxW = Math.ceil(Math.max(...weights) + 1);
+  let minW = Math.floor(Math.min(...weights));
+  let maxW = Math.ceil(Math.max(...weights));
+  
+  // 為了保證 Y 軸中位數也是整數，讓差距為偶數
+  if (maxW === minW) {
+    minW -= 1;
+    maxW += 1;
+  }
+  if ((maxW - minW) % 2 !== 0) {
+    minW -= 1;
+  }
+
   const width = 320;
   const height = 180;
-  const paddingX = 15;
+  const paddingX = 26; // 加大邊距，確保 3 位數不會超出畫布
   const paddingY = 25;
 
   const points = weightData.map((d, i) => ({
@@ -904,11 +937,11 @@ function TrendChart({ records }) {
           <svg width={width} height={height} className="mx-auto overflow-visible">
             {[0, 0.5, 1].map(r => {
               const y = paddingY + r * (height - paddingY * 2);
-              const val = (maxW - r * (maxW - minW)).toFixed(1);
+              const val = Math.round(maxW - r * (maxW - minW)); // 強制整數
               return (
                 <g key={`y-${r}`}>
                   <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#F0ECE7" strokeWidth="1" strokeDasharray="3 3" />
-                  <text x={paddingX - 4} y={y + 3} fontSize="8" fill="#C2BCB6" textAnchor="end" className="font-light">{val}</text>
+                  <text x={paddingX - 5} y={y + 3} fontSize="8" fill="#C2BCB6" textAnchor="end" className="font-light">{val}</text>
                 </g>
               );
             })}
