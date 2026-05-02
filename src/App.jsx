@@ -8,14 +8,32 @@ import {
 
 // --- Firebase 初始化 ---
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, signOut } from 'firebase/auth';
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
+// 優先使用環境變數中的 __firebase_config (這樣在 Canvas 測試環境才能正常拿到權限)
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
-  : { apiKey: "", authDomain: "", projectId: "", appId: "" };
-
+  : {
+      apiKey: "AIzaSyBHtWTHEXuSrZBnB4gzh2N7ZvzSVSmjWgg",
+      authDomain: "myweightapp-281cb.firebaseapp.com",
+      projectId: "myweightapp-281cb",
+      storageBucket: "myweightapp-281cb.firebasestorage.app",
+      messagingSenderId: "476667742331",
+      appId: "1:476667742331:web:09feb9c64766c0c9e1fade",
+      measurementId: "G-Q5EK8KZ85T"
+    };
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+// 為了避免在某些環境缺少測量 ID 報錯，加上 try/catch 或判斷
+let analytics;
+try {
+  analytics = getAnalytics(app);
+} catch(e) {
+  console.log("Analytics init skipped");
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId || 'default-app-id');
