@@ -28,7 +28,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId || 'default-app-id');
 
-// --- 本地儲存封裝 (Local Storage Wrapper) ---
+// --- 本地儲存封裝 ---
 const safeStorage = {
   get: (key) => {
     try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } 
@@ -253,13 +253,11 @@ export default function App() {
       } else if (themeMode === 'light') {
         isDarkTheme = false;
       } else {
-        // 自動模式：早晨 6 點到晚上 6 點為亮色，其餘時間為夜間
         const hour = new Date().getHours();
         isDarkTheme = (hour < 6 || hour >= 18);
       }
       setIsDark(isDarkTheme);
 
-      // 強制寫入 html 標籤與 body 底色，徹底解決周圍白框與切換失效問題
       if (isDarkTheme) {
         document.documentElement.classList.add('dark');
         document.body.style.backgroundColor = '#121212';
@@ -294,7 +292,7 @@ export default function App() {
     };
   }, []);
 
-  // --- Firebase 登入與智慧雙向同步邏輯 ---
+  // --- Firebase 同步邏輯 ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -466,7 +464,6 @@ export default function App() {
       const updated = typeof newProps === 'function' ? newProps(prev) : { ...prev, ...newProps };
       const now = Date.now();
       updated._updatedAt = now;
-      
       safeStorage.set('wt_profile', { data: updated, updatedAt: now });
 
       if (user) {
@@ -609,7 +606,6 @@ export default function App() {
     } else {
       let bmr = 10 * Number(latestWeight || 60) + 6.25 * Number(activeProfile.height) - 5 * Number(activeProfile.age);
       bmr += (activeProfile.gender === 'male' ? 5 : -161);
-      
       let weekEx = 0;
       for (let i = 1; i <= 7; i++) {
         const pastObj = new Date(targetDObj);
@@ -665,7 +661,6 @@ export default function App() {
     ];
 
     const displayStr = expr || placeholder;
-    
     const getFontSize = (text) => {
       const len = text.length;
       if (isLarge) {
@@ -1139,41 +1134,37 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
                         const iconSize = s("5", "7");
-                        
-                        // 動態計算主體重字體大小，嚴格分為兩種大小確保放得下
                         const strVal = String(latestW);
                         const mainFontSize = strVal.length >= 5 ? s('8.5px', '10.5px') : s('11px', '14px');
 
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          const diffStr = Math.abs(nDiff).toFixed(2); // 始終保留小數點後兩位
-                          
-                          // 動態計算差異數字字體大小
+                          const diffStr = Math.abs(nDiff).toFixed(2);
                           const diffLen = diffStr.length; 
                           const diffFontSize = diffLen >= 5 ? s('7.5px', '8.5px') : s('8.5px', '10px');
 
-                          if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
-                          else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
-                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] w-full text-center whitespace-nowrap tracking-tighter`}>0.00</span>;
+                          if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
+                          else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
+                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] text-center whitespace-nowrap tracking-tighter`}>0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center justify-center w-full px-0.5 min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none w-full text-center whitespace-nowrap tracking-tighter`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center justify-center min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-center whitespace-nowrap tracking-tighter`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         const calsLen = String(cals).length;
                         const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] w-full text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         const calsLen = String(cals).length;
                         const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] w-full text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
                       }
                     }
 
                     return (
                       <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-1.5')} flex flex-col items-center transition-colors border active:scale-95 min-w-0 overflow-hidden ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
                         <span className={`${s('text-[8px] mb-1 font-medium', 'text-[11px] mb-1 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'} shrink-0`}>{date.getDate()}</span>
-                        <div className="flex-1 flex items-center justify-center pointer-events-none w-full min-w-0">
+                        <div className="flex-1 flex items-center justify-center pointer-events-none min-w-0">
                           {cellContent}
                         </div>
                       </button>
@@ -1202,7 +1193,6 @@ function TrendChart({ records, isLarge }) {
       if (arr.length > 0) data.push({ date, weight: Number(arr[arr.length - 1].value) });
     });
     data.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
     if (range === 'ALL') return data;
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - parseInt(range));
@@ -1223,7 +1213,6 @@ function TrendChart({ records, isLarge }) {
   }
 
   const weights = weightData.map(d => d.weight);
-  
   let minW = Math.floor(Math.min(...weights));
   let maxW = Math.ceil(Math.max(...weights));
   if (maxW === minW) { minW -= 1; maxW += 1; }
@@ -1233,15 +1222,12 @@ function TrendChart({ records, isLarge }) {
   const viewBoxHeight = 180;
   const paddingX = s(20, 20); 
   const paddingY = 25;
-
   const points = weightData.map((d, i) => ({
     x: paddingX + (i / (weightData.length - 1)) * (viewBoxWidth - paddingX * 2),
     y: viewBoxHeight - paddingY - ((d.weight - minW) / (maxW - minW)) * (viewBoxHeight - paddingY * 2),
     dateStr: d.date
   }));
-
   const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
-
   const xAxisLabels = [];
   let lastMonth = null;
   points.forEach(p => {
@@ -1272,14 +1258,12 @@ function TrendChart({ records, isLarge }) {
                 </g>
               );
             })}
-            
             {xAxisLabels.map((lbl, i) => (
               <g key={`x-${i}`}>
                 <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={viewBoxHeight - paddingY} className="stroke-[#F9F8F6] dark:stroke-[#2A2A2A]" strokeWidth="1" />
                 <text x={lbl.x} y={viewBoxHeight - paddingY + 18} fontSize={s("8", "10")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
               </g>
             ))}
-
             <polyline points={polylinePoints} fill="none" stroke="#C4A495" strokeWidth={s("2", "2.5")} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
@@ -1303,11 +1287,8 @@ const TrendFilters = ({ range, setRange, isLarge }) => {
 function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, isLarge }) {
   const s = (n, l) => isLarge ? l : n;
   const themeMode = profile.themeMode || 'auto';
-
   return (
     <div className={`p-6 animate-in fade-in duration-500 ${s('space-y-5 pb-28', 'space-y-5 pb-32')}`}>
-      
-      {/* 1. 個人資料設定 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-6 space-y-5')}`}>
         <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Settings className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 個人資料設定</h2>
         <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
@@ -1334,8 +1315,6 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           </div>
         </div>
       </div>
-
-      {/* 2. 外觀主題設定 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
         <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2')}`}>
@@ -1344,8 +1323,6 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           <button onClick={() => onChangeSetting({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
         </div>
       </div>
-
-      {/* 3. 視覺友善切換開關 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex justify-between items-center ${s('p-6', 'p-6')}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`${s('w-10 h-10 rounded-xl', 'w-11 h-11 rounded-2xl')} bg-[#F5F2EB] dark:bg-[#2C2A25] flex items-center justify-center shrink-0`}>
@@ -1360,14 +1337,12 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
         </button>
       </div>
-      {/* 5. 儲存變更按鈕 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6', 'p-6')} mb-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
         <button onClick={onSave} disabled={!isDirty} className={`w-full rounded-xl font-bold tracking-widest transition-all flex items-center justify-center gap-2 ${s('py-3.5 text-[13px]', 'py-4 text-[15px]')} ${isDirty ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] active:scale-95 shadow-md' : 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#C2BCB6] dark:text-[#666666] cursor-not-allowed border border-[#E8E4DF] dark:border-[#3A3A3A]'}`}>
           <CheckCircle2 className={`${s('w-4 h-4', 'w-5 h-5')} stroke-[1.5] ${isDirty ? '' : 'opacity-50'}`} />
           {isDirty ? '儲存所有變更' : '已儲存最新設定'}
         </button>
       </div>
-      {/* 4. 雲端備份 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-2', 'text-[14px] font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
         {user && !user.isAnonymous ? (
@@ -1387,8 +1362,6 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           </div>
         )}
       </div>
-
-      
     </div>
   );
 }
