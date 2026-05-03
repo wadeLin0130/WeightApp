@@ -10,7 +10,7 @@ import {
 // --- Firebase 初始化 ---
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, getDocs } from 'firebase/firestore';
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
@@ -27,6 +27,32 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId || 'default-app-id');
+
+// --- 本地儲存封裝 (Local Storage Wrapper) ---
+// 使用 try-catch 避免在隱私模式或受限 iframe 中引發錯誤當機
+const safeStorage = {
+  get: (key) => {
+    try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } 
+    catch (e) { return null; }
+  },
+  set: (key, val) => {
+    try { localStorage.setItem(key, JSON.stringify(val)); } 
+    catch (e) {}
+  }
+};
+
+const DEFAULT_PROFILE = {
+  height: 165, age: 30, gender: 'female', customTDEE: '', 
+  dietCards: [
+    { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bf', name: '早餐', icon: 'Coffee' },
+    { id: 'lc', name: '午餐', icon: 'Utensils' }, { id: 'dn', name: '晚餐', icon: 'Utensils' },
+    { id: 'sn', name: '點心', icon: 'Apple' }
+  ],
+  exerciseCards: [
+    { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bd', name: '羽球', icon: 'Shuttlecock' },
+    { id: 'bx', name: '拳擊有氧', icon: 'Flame' }, { id: 'bp', name: '槓鈴有氧', icon: 'Dumbbell' }
+  ]
+};
 
 // --- 自訂圖示庫 ---
 const ShuttlecockIcon = ({ className }) => (
@@ -190,36 +216,15 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [recordsReady, setRecordsReady] = useState(false);
-  
-  // 新增：延遲顯示載入動畫的狀態，避免瞬間讀取時的畫面閃爍
-  const [showSpinner, setShowSpinner] = useState(false);
-  
   const todayStrRef = useRef(getDateString(new Date()));
   const [todayStr, setTodayStr] = useState(todayStrRef.current);
   const [targetDate, setTargetDate] = useState(todayStrRef.current);
 
-  const [profile, setProfile] = useState({
-    height: 165, age: 30, gender: 'female', customTDEE: '', 
-    dietCards: [
-      { id: 'custom', name: '自行輸入', icon: 'Plus' },
-      { id: 'bf', name: '早餐', icon: 'Coffee' },
-      { id: 'lc', name: '午餐', icon: 'Utensils' },
-      { id: 'dn', name: '晚餐', icon: 'Utensils' },
-      { id: 'sn', name: '點心', icon: 'Apple' }
-    ],
-    exerciseCards: [
-      { id: 'custom', name: '自行輸入', icon: 'Plus' },
-      { id: 'bd', name: '羽球', icon: 'Shuttlecock' },
-      { id: 'bx', name: '拳擊有氧', icon: 'Flame' },
-      { id: 'bp', name: '槓鈴有氧', icon: 'Dumbbell' }
-    ]
-  });
-
-  const [records, setRecords] = useState({});
-  const [isSyncing, setIsSyncing] = useState(false);
+  // 1. 同步從 LocalStorage 取得初始狀態 (瞬間顯示，消除閃爍)
+  const [profile, setProfile] = useState(() => safeStorage.get('wt_profile')?.data || DEFAULT_PROFILE);
+  const [records, setRecords] = useState(() => safeStorage.get('wt_records') || {});
 
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
@@ -233,48 +238,18 @@ export default function App() {
         setTodayStr(newToday);
       }
     };
-
-    const handlePageShow = (e) => {
-      handleWake();
-      if (e.persisted) {
-        setRecordsReady(false);
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          if (unsubRecordsRef.current) unsubRecordsRef.current();
-          if (unsubProfileRef.current) unsubProfileRef.current();
-          
-          const recordsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records');
-          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
-
-          unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
-            if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() }));
-          });
-
-          unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
-            const newRec = {};
-            snap.forEach(doc => newRec[doc.id] = doc.data());
-            setRecords(newRec);
-            setRecordsReady(true);
-          });
-        }
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') handleWake();
-    };
-
+    const handleVisibility = () => { if (document.visibilityState === 'visible') handleWake(); };
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleWake);
-    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('pageshow', handleWake);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleWake);
-      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('pageshow', handleWake);
     };
   }, []);
 
-  // --- Firebase 邏輯 ---
+  // --- Firebase 登入與智慧雙向同步邏輯 ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -285,67 +260,191 @@ export default function App() {
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
+    
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      
+      if (currentUser) {
+        setIsSyncing(true);
+        let isMounted = true;
+        
+        try {
+          // --- 智慧比對 1: Profile ---
+          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
+          const pSnap = await getDoc(profileRef);
+          const rProfile = pSnap.exists() ? pSnap.data() : null;
+          
+          const lProfileObj = safeStorage.get('wt_profile');
+          const lProfile = lProfileObj?.data || DEFAULT_PROFILE;
+          const lTimeP = lProfileObj?.updatedAt || 0;
+          const rTimeP = rProfile?._updatedAt || 0;
 
-  useEffect(() => {
-    if (unsubRecordsRef.current) { unsubRecordsRef.current(); unsubRecordsRef.current = null; }
-    if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
+          if (rProfile && rTimeP > lTimeP) {
+            // 雲端比較新
+            if (isMounted) setProfile(rProfile);
+            safeStorage.set('wt_profile', { data: rProfile, updatedAt: rTimeP });
+          } else if (lTimeP > rTimeP) {
+            // 本地比較新，上傳到雲端
+            await setDoc(profileRef, lProfile, { merge: true });
+          }
 
-    if (!user) {
-      setRecords({});
-      setRecordsReady(true); 
-      setIsInitialLoad(false);
-      return;
-    }
+          // --- 智慧比對 2: Records ---
+          const recordsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records');
+          const rSnap = await getDocs(recordsRef);
+          const rRecords = {};
+          rSnap.forEach(d => { rRecords[d.id] = d.data(); });
 
-    setRecordsReady(false);
+          const lRecords = safeStorage.get('wt_records') || {};
+          const mergedRecords = { ...lRecords };
+          const needsUpload = [];
 
-    const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'health_records');
-    const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
+          const allDates = new Set([...Object.keys(rRecords), ...Object.keys(lRecords)]);
+          allDates.forEach(date => {
+            const rData = rRecords[date];
+            const lData = lRecords[date];
+            const rTime = rData?._updatedAt || 0;
+            const lTime = lData?._updatedAt || 0;
 
-    unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
-      if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() }));
-    });
+            if (rData && rTime > lTime) {
+              mergedRecords[date] = rData; // 雲端較新
+            } else if (lData && lTime > rTime) {
+              mergedRecords[date] = lData; // 本地較新
+              needsUpload.push({ date, data: lData });
+            }
+          });
 
-    unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
-      const newRec = {};
-      snap.forEach(doc => newRec[doc.id] = doc.data());
-      setRecords(newRec);
-      setRecordsReady(true);
-      setIsInitialLoad(false);
+          if (isMounted) setRecords(mergedRecords);
+          safeStorage.set('wt_records', mergedRecords);
+
+          // 上傳本地較新的歷史紀錄
+          for (const item of needsUpload) {
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records', item.date), item.data, { merge: true });
+          }
+
+          // --- 建立持續性監聽，但只在雲端有新資料時才覆蓋本地 ---
+          if (unsubProfileRef.current) unsubProfileRef.current();
+          unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
+            if (snap.exists() && isMounted) {
+              const d = snap.data();
+              setProfile(p => {
+                if ((d._updatedAt || 0) > (p._updatedAt || 0)) {
+                  safeStorage.set('wt_profile', { data: d, updatedAt: d._updatedAt });
+                  return d;
+                }
+                return p;
+              });
+            }
+          });
+
+          if (unsubRecordsRef.current) unsubRecordsRef.current();
+          unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
+            if (!isMounted) return;
+            const newRecs = {};
+            snap.forEach(d => { newRecs[d.id] = d.data(); });
+            
+            setRecords(prev => {
+              let changed = false;
+              const next = { ...prev };
+              Object.keys(newRecs).forEach(date => {
+                if ((newRecs[date]?._updatedAt || 0) > (next[date]?._updatedAt || 0)) {
+                  next[date] = newRecs[date];
+                  changed = true;
+                }
+              });
+              if (changed) safeStorage.set('wt_records', next);
+              return changed ? next : prev;
+            });
+          });
+
+        } catch(e) {
+          console.error("Sync Error:", e);
+        } finally {
+          if (isMounted) setIsSyncing(false);
+        }
+      }
     });
 
     return () => {
-      if (unsubRecordsRef.current) { unsubRecordsRef.current(); unsubRecordsRef.current = null; }
-      if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
+      unsubscribe();
+      if (unsubProfileRef.current) unsubProfileRef.current();
+      if (unsubRecordsRef.current) unsubRecordsRef.current();
     };
-  }, [user]);
+  }, []);
 
-  useEffect(() => {
-    if (!user || !profile.age || !recordsReady) return;
-    const timeoutId = setTimeout(async () => {
+  // --- 資料更新方法 (統一處理 Local + State + Remote) ---
+  const updateProfile = async (newProps) => {
+    setProfile(prev => {
+      const updated = typeof newProps === 'function' ? newProps(prev) : { ...prev, ...newProps };
+      const now = Date.now();
+      updated._updatedAt = now;
+      
+      safeStorage.set('wt_profile', { data: updated, updatedAt: now });
+
+      if (user) {
+        setIsSyncing(true);
+        setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), updated, { merge: true })
+          .catch(()=>{})
+          .finally(() => setIsSyncing(false));
+      }
+      return updated;
+    });
+  };
+
+  const updateRecords = async (operateDate, updatedDayData) => {
+    const now = Date.now();
+    const finalData = { ...updatedDayData, _updatedAt: now };
+
+    setRecords(prev => {
+      const next = { ...prev, [operateDate]: finalData };
+      safeStorage.set('wt_records', next);
+      return next;
+    });
+
+    if (user) {
       setIsSyncing(true);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), profile, { merge: true }).catch(()=>{});
-      setIsSyncing(false);
-    }, 1500); 
-    return () => clearTimeout(timeoutId);
-  }, [profile, user, recordsReady]);
-
-  // 控制是否正在阻擋渲染（尚未取得第一筆資料）
-  const showLoading = isInitialLoad || !recordsReady;
-
-  // 處理載入畫面的顯示延遲：如果讀取時間超過 250ms 才顯示載入 UI，避免畫面閃動
-  useEffect(() => {
-    let timer;
-    if (showLoading) {
-      timer = setTimeout(() => setShowSpinner(true), 2000);
-    } else {
-      setShowSpinner(false);
+      setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), finalData, { merge: true })
+        .catch(()=>{})
+        .finally(() => setIsSyncing(false));
     }
-    return () => clearTimeout(timer);
-  }, [showLoading]);
+  };
+
+  // --- 操作流程 ---
+  const openCategoryFlow = (category, dateStr = targetDate) => {
+    const dataObj = records[dateStr] || {};
+    const hasData = getArrayData(dataObj, category).length > 0;
+    if (hasData) {
+      setModalState({ view: 'list', category, dateStr });
+    } else {
+      if (category === 'diet' || category === 'exercise') setModalState({ view: 'select', category, dateStr });
+      else setModalState({ view: 'calc', category, dateStr });
+    }
+  };
+
+  const handleSaveData = (category, dataObj) => {
+    const operateDate = modalState?.dateStr || targetDate;
+    const currentDayData = records[operateDate] || {};
+    const arr = getArrayData(currentDayData, category);
+    let newArr;
+
+    if (modalState?.item?.id) {
+      newArr = arr.map(item => item.id === modalState.item.id ? { ...item, ...dataObj } : item);
+    } else {
+      newArr = [...arr, { id: Date.now().toString(), time: getTimeString(), ...dataObj }];
+    }
+    
+    updateRecords(operateDate, { ...currentDayData, [category]: newArr });
+    setModalState(null);
+  };
+
+  const handleDeleteData = (category, id) => {
+    const operateDate = modalState?.dateStr || targetDate;
+    const currentDayData = records[operateDate] || {};
+    const arr = getArrayData(currentDayData, category);
+    const newArr = arr.filter(item => item.id !== id);
+    
+    updateRecords(operateDate, { ...currentDayData, [category]: newArr });
+    if (newArr.length === 0) setModalState(null);
+  };
 
   // ============================================================================
   // 核心資料計算
@@ -413,60 +512,6 @@ export default function App() {
       tdee = Math.round((bmr * 1.2) + (weekEx / 7));
     }
   }
-  // ============================================================================
-
-  // --- 操作流程 ---
-  const openCategoryFlow = (category, dateStr = targetDate) => {
-    const dataObj = records[dateStr] || {};
-    const hasData = getArrayData(dataObj, category).length > 0;
-    if (hasData) {
-      setModalState({ view: 'list', category, dateStr });
-    } else {
-      if (category === 'diet' || category === 'exercise') setModalState({ view: 'select', category, dateStr });
-      else setModalState({ view: 'calc', category, dateStr });
-    }
-  };
-
-  const handleSaveData = async (category, dataObj) => {
-    const operateDate = modalState?.dateStr || targetDate;
-    const currentDayData = records[operateDate] || {};
-    const arr = getArrayData(currentDayData, category);
-    let newArr;
-
-    if (modalState?.item?.id) {
-      newArr = arr.map(item => item.id === modalState.item.id ? { ...item, ...dataObj } : item);
-    } else {
-      newArr = [...arr, { id: Date.now().toString(), time: getTimeString(), ...dataObj }];
-    }
-    
-    const updated = { ...currentDayData, [category]: newArr };
-    setRecords(prev => ({...prev, [operateDate]: updated}));
-    setModalState(null);
-
-    if (user) {
-      setIsSyncing(true);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), updated, { merge: true }).catch(()=>{});
-      setIsSyncing(false);
-    }
-  };
-
-  const handleDeleteData = async (category, id) => {
-    const operateDate = modalState?.dateStr || targetDate;
-    const currentDayData = records[operateDate] || {};
-    const arr = getArrayData(currentDayData, category);
-    const newArr = arr.filter(item => item.id !== id);
-    const updated = { ...currentDayData, [category]: newArr };
-    
-    setRecords(prev => ({...prev, [operateDate]: updated}));
-    
-    if (newArr.length === 0) setModalState(null);
-
-    if (user) {
-      setIsSyncing(true);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), updated, { merge: true }).catch(()=>{});
-      setIsSyncing(false);
-    }
-  };
 
   // --- 計算機元件 ---
   const Calculator = ({ onSave, title, placeholder, initialValue = "", showDecimals = true }) => {
@@ -701,8 +746,8 @@ export default function App() {
             const icon = e.target.iconSelect.value;
             if(!name) return;
             const newCard = { id: Date.now().toString(), name, icon };
-            if(isDiet) setProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
-            else setProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
+            if(isDiet) updateProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
+            else updateProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
             setModalState({view: 'select', category, dateStr: operateDate});
           }} className="space-y-5">
             <div>
@@ -737,24 +782,15 @@ export default function App() {
           {activeTab === 'calendar' && 'Calendar'}
           {activeTab === 'trend' && 'Analytics'}
           {activeTab === 'settings' && 'Profile'}
-          {isSyncing ? <Cloud className="w-3 h-3 text-[#C4A495] animate-pulse" /> : user && !user.isAnonymous ? <Cloud className="w-3 h-3 text-[#9AA899]" /> : <CloudOff className="w-3 h-3 text-[#C2BCB6]" />}
+          {isSyncing ? <RefreshCw className="w-3 h-3 text-[#C4A495] animate-spin" /> : user && !user.isAnonymous ? <Cloud className="w-3 h-3 text-[#9AA899]" /> : <CloudOff className="w-3 h-3 text-[#C2BCB6]" />}
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
-        {showLoading ? (
-          <div className={`flex flex-col items-center justify-center h-full text-[#C2BCB6] pb-20 transition-opacity duration-300 ${showSpinner ? 'opacity-100' : 'opacity-0'}`}>
-            <RefreshCw className="w-8 h-8 animate-spin mb-4 stroke-[1.5] text-[#8C8477]" />
-            <p className="text-[10px] tracking-widest font-medium">資料同步中</p>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'home' && renderHome()}
-            {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
-            {activeTab === 'trend' && <TrendChart records={records} />}
-            {activeTab === 'settings' && <SettingsView profile={profile} setProfile={setProfile} user={user} auth={auth} />}
-          </>
-        )}
+        {activeTab === 'home' && renderHome()}
+        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
+        {activeTab === 'trend' && <TrendChart records={records} />}
+        {activeTab === 'settings' && <SettingsView profile={profile} updateProfile={updateProfile} user={user} auth={auth} />}
       </main>
 
       <nav className="bg-[#F7F5F2]/95 backdrop-blur-md border-t border-[#EBE8E3] px-2 pt-2 pb-6 flex justify-around items-center fixed bottom-0 w-full max-w-md z-40">
@@ -1065,7 +1101,7 @@ const TrendFilters = ({ range, setRange }) => (
 );
 
 // --- 設定頁面 ---
-function SettingsView({ profile, setProfile, user, auth }) {
+function SettingsView({ profile, updateProfile, user, auth }) {
   return (
     <div className="p-6 space-y-5 animate-in fade-in duration-500 pb-28">
       <div className="bg-white rounded-3xl p-6 border border-[#F0ECE7] space-y-5">
@@ -1074,23 +1110,23 @@ function SettingsView({ profile, setProfile, user, auth }) {
           <div className="space-y-2">
             <label className="text-[9px] tracking-widest text-[#8C8477]">GENDER</label>
             <div className="flex gap-2">
-              <button onClick={() => setProfile({...profile, gender: 'male'})} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'male' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>男</button>
-              <button onClick={() => setProfile({...profile, gender: 'female'})} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'female' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>女</button>
+              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'male' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>男</button>
+              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'female' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>女</button>
             </div>
           </div>
           <div className="space-y-2">
             <label className="text-[9px] tracking-widest text-[#8C8477]">AGE</label>
-            <input type="number" value={profile.age || ''} onChange={(e) => setProfile({...profile, age: e.target.value})} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
+            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-[9px] tracking-widest text-[#8C8477]">HEIGHT (cm)</label>
-            <input type="number" value={profile.height || ''} onChange={(e) => setProfile({...profile, height: e.target.value})} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
+            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
           </div>
           <div className="space-y-2">
             <label className="text-[9px] tracking-widest text-[#8C8477]">自訂 TDEE</label>
-            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => setProfile({...profile, customTDEE: e.target.value})} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center placeholder:text-[#C2BCB6]" />
+            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center placeholder:text-[#C2BCB6]" />
           </div>
         </div>
       </div>
