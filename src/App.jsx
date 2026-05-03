@@ -231,12 +231,17 @@ export default function App() {
 
   const [profile, setProfile] = useState(() => safeStorage.get('wt_profile')?.data || DEFAULT_PROFILE);
   const [records, setRecords] = useState(() => safeStorage.get('wt_records') || {});
+  
+  // 設定頁面的本地暫存
+  const [draftProfile, setDraftProfile] = useState(null);
+  const activeProfile = draftProfile || profile;
+  const isProfileDirty = draftProfile !== null;
 
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
 
-  const isLarge = profile.visualFriendly || false;
-  const themeMode = profile.themeMode || 'auto';
+  const isLarge = activeProfile.visualFriendly || false;
+  const themeMode = activeProfile.themeMode || 'auto';
   const s = (normal, large) => isLarge ? large : normal;
 
   // --- 夜間模式與時間監聽邏輯 ---
@@ -474,6 +479,28 @@ export default function App() {
     });
   };
 
+  const handleSettingChange = (newProps) => {
+    setDraftProfile(prev => {
+      const current = prev || profile;
+      return { ...current, ...newProps };
+    });
+  };
+
+  const handleSaveSettings = () => {
+    if (draftProfile) {
+      updateProfile(draftProfile);
+      setDraftProfile(null);
+    }
+  };
+
+  const handleTabClick = (tab) => {
+    if (activeTab === 'settings' && isProfileDirty && tab !== 'settings') {
+      setModalState({ view: 'confirm_leave', pendingTab: tab });
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
   const updateRecords = async (operateDate, updatedDayData) => {
     const now = Date.now();
     const finalData = { ...updatedDayData, _updatedAt: now };
@@ -576,12 +603,12 @@ export default function App() {
   }
 
   let tdee = 0;
-  if (profile.height && profile.age) {
-    if (profile.customTDEE && Number(profile.customTDEE) > 0) {
-      tdee = Number(profile.customTDEE);
+  if (activeProfile.height && activeProfile.age) {
+    if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
+      tdee = Number(activeProfile.customTDEE);
     } else {
-      let bmr = 10 * Number(latestWeight || 60) + 6.25 * Number(profile.height) - 5 * Number(profile.age);
-      bmr += (profile.gender === 'male' ? 5 : -161);
+      let bmr = 10 * Number(latestWeight || 60) + 6.25 * Number(activeProfile.height) - 5 * Number(activeProfile.age);
+      bmr += (activeProfile.gender === 'male' ? 5 : -161);
       
       let weekEx = 0;
       for (let i = 1; i <= 7; i++) {
@@ -639,19 +666,18 @@ export default function App() {
 
     const displayStr = expr || placeholder;
     
-    // 動態縮放字體的邏輯
     const getFontSize = (text) => {
       const len = text.length;
       if (isLarge) {
-        if (len <= 7) return 'clamp(2rem, 10vw, 3rem)'; // 48px
-        if (len <= 10) return 'clamp(1.5rem, 8vw, 2.25rem)'; // 36px
-        if (len <= 14) return 'clamp(1.2rem, 6vw, 1.875rem)'; // 30px
-        return 'clamp(1rem, 5vw, 1.5rem)'; // 24px
+        if (len <= 7) return 'clamp(2rem, 10vw, 3rem)';
+        if (len <= 10) return 'clamp(1.5rem, 8vw, 2.25rem)';
+        if (len <= 14) return 'clamp(1.2rem, 6vw, 1.875rem)';
+        return 'clamp(1rem, 5vw, 1.5rem)';
       } else {
-        if (len <= 7) return 'clamp(1.75rem, 8vw, 2.25rem)'; // 36px
-        if (len <= 10) return 'clamp(1.5rem, 6vw, 1.875rem)'; // 30px
-        if (len <= 14) return 'clamp(1.25rem, 5vw, 1.5rem)'; // 24px
-        return '1.125rem'; // 18px
+        if (len <= 7) return 'clamp(1.75rem, 8vw, 2.25rem)';
+        if (len <= 10) return 'clamp(1.5rem, 6vw, 1.875rem)';
+        if (len <= 14) return 'clamp(1.25rem, 5vw, 1.5rem)';
+        return '1.125rem';
       }
     };
 
@@ -774,6 +800,27 @@ export default function App() {
       </div>
     );
 
+    if (view === 'confirm_leave') {
+      return (
+        <ModalLayout title="尚未儲存變更">
+          <p className={`${s('text-xs', 'text-sm')} text-[#8C8477] dark:text-[#A1988B] mb-6 text-center tracking-wide`}>
+            有未儲存的變更，是否儲存？
+          </p>
+          <div className="flex flex-col gap-3">
+            <button onClick={() => { handleSaveSettings(); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
+              儲存
+            </button>
+            <button onClick={() => { setDraftProfile(null); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#EFECE7] dark:bg-[#333333] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
+              捨棄
+            </button>
+            <button onClick={() => setModalState(null)} className={`w-full bg-transparent border border-[#E8E4DF] dark:border-[#3A3A3A] text-[#8C8477] dark:text-[#A1988B] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
+              取消
+            </button>
+          </div>
+        </ModalLayout>
+      );
+    }
+
     if (view === 'datepicker') {
       return (
         <ModalLayout title="選擇日期">
@@ -813,7 +860,7 @@ export default function App() {
     }
 
     if (view === 'select') {
-      const cards = isDiet ? profile.dietCards : profile.exerciseCards;
+      const cards = isDiet ? activeProfile.dietCards : activeProfile.exerciseCards;
       const colorClass = isDiet ? 'text-[#9AA899] dark:text-[#9AA899] bg-[#EEF2ED] dark:bg-[#222B21] border-[#D6E0D5] dark:border-[#2C3B2A]' : 'text-[#C4A495] dark:text-[#C4A495] bg-[#F7EFEA] dark:bg-[#2D2520] border-[#E8D9D1] dark:border-[#3D302A]';
       return (
         <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
@@ -872,8 +919,10 @@ export default function App() {
             const icon = e.target.iconSelect.value;
             if(!name) return;
             const newCard = { id: Date.now().toString(), name, icon };
-            if(isDiet) updateProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
-            else updateProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
+            updateProfile(p => ({
+              ...p,
+              [isDiet ? 'dietCards' : 'exerciseCards']: [...p[isDiet ? 'dietCards' : 'exerciseCards'], newCard]
+            }));
             setModalState({view: 'select', category, dateStr: operateDate});
           }} className={s('space-y-5', 'space-y-5')}>
             <div>
@@ -916,14 +965,14 @@ export default function App() {
         {activeTab === 'home' && renderHome()}
         {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} isLarge={isLarge} />}
         {activeTab === 'trend' && <TrendChart records={records} isLarge={isLarge} />}
-        {activeTab === 'settings' && <SettingsView profile={profile} updateProfile={updateProfile} user={user} auth={auth} isLarge={isLarge} />}
+        {activeTab === 'settings' && <SettingsView profile={activeProfile} onChangeSetting={handleSettingChange} onSave={handleSaveSettings} isDirty={isProfileDirty} user={user} auth={auth} isLarge={isLarge} />}
       </main>
 
       <nav className={`bg-[#F7F5F2]/95 dark:bg-[#121212]/95 backdrop-blur-md border-t border-[#EBE8E3] dark:border-[#2A2A2A] px-2 ${s('pt-2 pb-6', 'pt-2.5 pb-8')} flex justify-around items-center fixed bottom-0 w-full max-w-md z-40`}>
-        <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Home} label="首頁" isLarge={isLarge} />
-        <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
-        <NavButton active={activeTab === 'trend'} onClick={() => setActiveTab('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
-        <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="設定" isLarge={isLarge} />
+        <NavButton active={activeTab === 'home'} onClick={() => handleTabClick('home')} icon={Home} label="首頁" isLarge={isLarge} />
+        <NavButton active={activeTab === 'calendar'} onClick={() => handleTabClick('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
+        <NavButton active={activeTab === 'trend'} onClick={() => handleTabClick('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
+        <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} />
       </nav>
 
       {renderModals()}
@@ -1093,24 +1142,26 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         const iconSize = s("5", "7");
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#9AA899] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[10px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666]`}>- 0.00</span>;
+                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span className="truncate">{Math.abs(nDiff).toFixed(2)}</span></span>;
+                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span className="truncate">{Math.abs(nDiff).toFixed(2)}</span></span>;
+                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[10px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] w-full text-center truncate`}>- 0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-[14px]')} leading-none`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center w-full px-0.5 min-w-0"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-[14px]')} leading-none w-full text-center truncate`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#9AA899]`}>{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#9AA899] w-full text-center truncate`}>{cals > 0 ? cals : '✓'}</span></div>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#C4A495]`}>{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#C4A495] w-full text-center truncate`}>{cals > 0 ? cals : '✓'}</span></div>;
                       }
                     }
 
                     return (
-                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-1.5')} flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
-                        <span className={`${s('text-[8px] mb-1 font-medium', 'text-[11px] mb-1 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'}`}>{date.getDate()}</span>
-                        <div className="flex-1 flex items-center justify-center pointer-events-none">{cellContent}</div>
+                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-1.5')} flex flex-col items-center transition-colors border active:scale-95 min-w-0 overflow-hidden ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
+                        <span className={`${s('text-[8px] mb-1 font-medium', 'text-[11px] mb-1 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'} shrink-0`}>{date.getDate()}</span>
+                        <div className="flex-1 flex items-center justify-center pointer-events-none w-full min-w-0">
+                          {cellContent}
+                        </div>
                       </button>
                     );
                   })}
@@ -1235,7 +1286,7 @@ const TrendFilters = ({ range, setRange, isLarge }) => {
 }
 
 // --- 設定頁面 ---
-function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
+function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, isLarge }) {
   const s = (n, l) => isLarge ? l : n;
   const themeMode = profile.themeMode || 'auto';
 
@@ -1249,23 +1300,23 @@ function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
           <div className={s('space-y-2', 'space-y-2')}>
             <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>GENDER</label>
             <div className={`flex ${s('gap-2', 'gap-2')}`}>
-              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
-              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
+              <button onClick={() => onChangeSetting({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
+              <button onClick={() => onChangeSetting({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
             </div>
           </div>
           <div className={s('space-y-2', 'space-y-2')}>
             <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>AGE</label>
-            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
+            <input type="number" value={profile.age || ''} onChange={(e) => onChangeSetting({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
         </div>
         <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
           <div className={s('space-y-2', 'space-y-2')}>
             <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>HEIGHT (cm)</label>
-            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
+            <input type="number" value={profile.height || ''} onChange={(e) => onChangeSetting({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
           <div className={s('space-y-2', 'space-y-2')}>
             <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>自訂 TDEE</label>
-            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
+            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => onChangeSetting({ customTDEE: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
         </div>
       </div>
@@ -1274,11 +1325,10 @@ function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
         <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2')}`}>
-          <button onClick={() => updateProfile({ themeMode: 'light' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'light' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>亮色</button>
-          <button onClick={() => updateProfile({ themeMode: 'dark' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'dark' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>夜間</button>
-          <button onClick={() => updateProfile({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
+          <button onClick={() => onChangeSetting({ themeMode: 'light' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'light' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>亮色</button>
+          <button onClick={() => onChangeSetting({ themeMode: 'dark' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'dark' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>夜間</button>
+          <button onClick={() => onChangeSetting({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
         </div>
-        <p className={`${s('text-[10px] mt-1', 'text-[11px] mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>自動模式將於日落 (18:00) 至日出 (06:00) 期間切換為夜間模式</p>
       </div>
 
       {/* 3. 視覺友善切換開關 */}
@@ -1292,11 +1342,17 @@ function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
             <p className={`${s('text-[10px] mt-1', 'text-[11px] mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide truncate`}>放大文字與圖示尺寸</p>
           </div>
         </div>
-        <button onClick={() => updateProfile({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 shrink-0 ml-2 ${s('w-11 h-6', 'w-12 h-7')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
+        <button onClick={() => onChangeSetting({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 shrink-0 ml-2 ${s('w-11 h-6', 'w-12 h-7')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
           <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
         </button>
       </div>
-
+      {/* 5. 儲存變更按鈕 */}
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6', 'p-6')} mb-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+        <button onClick={onSave} disabled={!isDirty} className={`w-full rounded-xl font-bold tracking-widest transition-all flex items-center justify-center gap-2 ${s('py-3.5 text-[13px]', 'py-4 text-[15px]')} ${isDirty ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] active:scale-95 shadow-md' : 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#C2BCB6] dark:text-[#666666] cursor-not-allowed border border-[#E8E4DF] dark:border-[#3A3A3A]'}`}>
+          <CheckCircle2 className={`${s('w-4 h-4', 'w-5 h-5')} stroke-[1.5] ${isDirty ? '' : 'opacity-50'}`} />
+          {isDirty ? '儲存所有變更' : '已儲存最新設定'}
+        </button>
+      </div>
       {/* 4. 雲端備份 */}
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-2', 'text-[14px] font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
@@ -1317,6 +1373,8 @@ function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
           </div>
         )}
       </div>
+
+      
     </div>
   );
 }
