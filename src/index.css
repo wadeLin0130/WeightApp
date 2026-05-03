@@ -1,2 +1,15 @@
+/* 這是 Tailwind v4 的寫法 */
 @import "tailwindcss";
+
+/* 👉 這就是最關鍵的一行！它會強迫 Tailwind 聽從我們手動切換的 .dark class，而不是只聽系統的 */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ======================================================
+⚠️ 如果你其實是使用舊版的 Tailwind v3，請把上面兩行刪掉，
+改用下面這三行（並且確認你的專案有 tailwind.config.js）：
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+======================================================
+*/
