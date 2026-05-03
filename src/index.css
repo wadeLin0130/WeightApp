@@ -2,3 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 確保背景色能填滿整個螢幕，防止白邊與切換失效 */
+@layer base {
+  html.dark {
+    background-color: #121212;
+  }
+  html {
+    background-color: #F7F5F2;
+  }
+}
