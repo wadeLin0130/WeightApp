@@ -4,7 +4,7 @@ import {
   Flame, Utensils, Droplets, X, Plus, ChevronLeft, ChevronRight, CheckCircle2,
   Cloud, CloudOff, ShieldCheck, Activity, Dumbbell, Coffee, Apple, Pizza, Carrot, 
   Fish, Beef, Bike, Zap, HeartPulse, Delete, Trash2,
-  Music, Sun, Moon, Star, Heart, Target, RefreshCw
+  Music, Sun, Moon, Star, Heart, Target, RefreshCw, Moon as MoonIcon
 } from 'lucide-react';
 
 // --- Firebase 初始化 ---
@@ -29,7 +29,6 @@ const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId || 'default-app-id');
 
 // --- 本地儲存封裝 (Local Storage Wrapper) ---
-// 使用 try-catch 避免在隱私模式或受限 iframe 中引發錯誤當機
 const safeStorage = {
   get: (key) => {
     try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } 
@@ -43,6 +42,7 @@ const safeStorage = {
 
 const DEFAULT_PROFILE = {
   height: 165, age: 30, gender: 'female', customTDEE: '', 
+  visualFriendly: false, themeMode: 'auto',
   dietCards: [
     { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bf', name: '早餐', icon: 'Coffee' },
     { id: 'lc', name: '午餐', icon: 'Utensils' }, { id: 'dn', name: '晚餐', icon: 'Utensils' },
@@ -93,10 +93,14 @@ const getArrayData = (data, key) => {
 };
 
 // --- 左滑刪除元件 ---
-const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) => {
+const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, isLarge }) => {
+  const s = (n, l) => isLarge ? l : n;
   const [offsetX, setOffsetX] = useState(0);
   const startXRef = useRef(0);
   const currentXRef = useRef(0);
+  
+  const maxOffset = isLarge ? -90 : -80;
+  const triggerOffset = isLarge ? -45 : -40;
 
   const handleTouchStart = (e) => {
     startXRef.current = e.touches[0].clientX;
@@ -105,7 +109,7 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
   const handleTouchMove = (e) => {
     const deltaX = e.touches[0].clientX - startXRef.current;
     if (deltaX < 0) {
-      currentXRef.current = Math.max(deltaX, -80);
+      currentXRef.current = Math.max(deltaX, maxOffset);
       setOffsetX(currentXRef.current);
     } else if (deltaX > 0 && offsetX < 0) {
       currentXRef.current = Math.min(offsetX + deltaX, 0);
@@ -114,9 +118,9 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
   };
   
   const handleTouchEnd = () => {
-    if (currentXRef.current < -40) {
-      setOffsetX(-80);
-      currentXRef.current = -80;
+    if (currentXRef.current < triggerOffset) {
+      setOffsetX(maxOffset);
+      currentXRef.current = maxOffset;
     } else {
       setOffsetX(0);
       currentXRef.current = 0;
@@ -126,15 +130,15 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
   const displayValue = record.calories ?? record.value ?? 0;
 
   return (
-    <div className="relative w-full mb-3 rounded-2xl overflow-hidden touch-pan-y bg-[#C78D87]">
-      <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center">
-        <button onClick={(e) => { e.stopPropagation(); onDelete(record.id); }} className="w-full h-full flex flex-col items-center justify-center text-white active:bg-[#B57C76] transition-colors">
-          <Trash2 className="w-5 h-5 mb-1 stroke-[1.5]" />
-          <span className="text-[10px]">刪除</span>
+    <div className="relative w-full mb-3 rounded-2xl overflow-hidden touch-pan-y bg-[#C78D87] dark:bg-[#B86C65]">
+      <div className={`absolute inset-y-0 right-0 ${s('w-20', 'w-[90px]')} flex items-center justify-center`}>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(record.id); }} className="w-full h-full flex flex-col items-center justify-center text-white active:bg-[#B57C76] dark:active:bg-[#A55F59] transition-colors">
+          <Trash2 className={`${s('w-5 h-5 mb-1', 'w-6 h-6 mb-1.5')} stroke-[1.5]`} />
+          <span className={s('text-[10px]', 'text-sm font-medium tracking-wide')}>刪除</span>
         </button>
       </div>
       <div 
-        className="relative w-full bg-[#F9F8F6] p-4 flex justify-between items-center transition-transform duration-200 z-10 h-full border border-[#E8E4DF] rounded-2xl"
+        className={`relative w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-4', 'p-5')} flex justify-between items-center transition-transform duration-200 z-10 h-full border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl`}
         style={{ transform: `translateX(${offsetX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -145,14 +149,14 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
         }}
       >
         <div className="flex items-center gap-4 pointer-events-none">
-          <span className="text-[10px] text-[#A89F91] font-light w-10">{record.time}</span>
-          <div className="h-4 w-[1px] bg-[#D6D0C4]"></div>
-          {(isDiet || isEx) && <span className="text-xs font-medium text-[#5C5C5C] truncate max-w-[120px]">{record.content || record.type}</span>}
-          {!(isDiet || isEx) && <span className="text-xs font-medium text-[#5C5C5C]">紀錄數值</span>}
+          <span className={`${s('text-[10px] w-10', 'text-sm w-12')} text-[#A89F91] dark:text-[#888888] font-medium`}>{record.time}</span>
+          <div className={`${s('h-4 w-[1px]', 'h-5 w-[1.5px]')} bg-[#D6D0C4] dark:bg-[#4A4A4A]`}></div>
+          {(isDiet || isEx) && <span className={`${s('text-xs max-w-[120px]', 'text-base max-w-[130px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate`}>{record.content || record.type}</span>}
+          {!(isDiet || isEx) && <span className={`${s('text-xs', 'text-base')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>紀錄數值</span>}
         </div>
         <div className="flex items-baseline gap-1 pointer-events-none">
-          <span className="text-sm font-medium text-[#5C5C5C]">{displayValue}</span>
-          {Number(displayValue) > 0 && <span className="text-[9px] text-[#A89F91] font-light">{catConfig.unit}</span>}
+          <span className={`${s('text-sm', 'text-xl')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
+          {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-xs')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
         </div>
       </div>
     </div>
@@ -160,7 +164,8 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
 };
 
 // --- 儀表板小月曆元件 ---
-function DashboardDatePicker({ initialDate, onSelect }) {
+function DashboardDatePicker({ initialDate, onSelect, isLarge }) {
+  const s = (n, l) => isLarge ? l : n;
   const [viewDate, setViewDate] = useState(new Date(initialDate));
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -173,36 +178,36 @@ function DashboardDatePicker({ initialDate, onSelect }) {
   const months = Array.from({length: 12}, (_, i) => i);
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center bg-[#F9F8F6] p-2 rounded-2xl border border-[#E8E4DF]">
-        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="p-2 text-[#8C8477] hover:bg-[#EFECE7] rounded-xl transition-colors active:scale-90"><ChevronLeft className="w-5 h-5"/></button>
+    <div className={s('space-y-4', 'space-y-5')}>
+      <div className={`flex justify-between items-center bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-2', 'p-2.5')} rounded-2xl border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+        <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="p-2 text-[#8C8477] dark:text-[#A1988B] hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-xl transition-colors active:scale-90"><ChevronLeft className={s('w-5 h-5', 'w-6 h-6')}/></button>
         <div className="flex gap-2">
-          <div className="relative flex items-center bg-white border border-[#E8E4DF] rounded-xl px-1 shadow-sm">
-            <select value={year} onChange={(e) => setViewDate(new Date(Number(e.target.value), month, 1))} className="appearance-none bg-transparent py-2 pl-3 pr-6 outline-none text-[#5C5C5C] text-sm font-medium">
+          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-2')} shadow-sm`}>
+            <select value={year} onChange={(e) => setViewDate(new Date(Number(e.target.value), month, 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2.5 pl-3 pr-8 text-lg')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
               {years.map(y => <option key={y} value={y}>{y} 年</option>)}
             </select>
-            <div className="absolute right-2 pointer-events-none text-[#A89F91] text-[10px]">▼</div>
+            <div className={`absolute ${s('right-2 text-[10px]', 'right-3 text-sm')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
           </div>
-          <div className="relative flex items-center bg-white border border-[#E8E4DF] rounded-xl px-1 shadow-sm">
-            <select value={month} onChange={(e) => setViewDate(new Date(year, Number(e.target.value), 1))} className="appearance-none bg-transparent py-2 pl-3 pr-6 outline-none text-[#5C5C5C] text-sm font-medium">
+          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-2')} shadow-sm`}>
+            <select value={month} onChange={(e) => setViewDate(new Date(year, Number(e.target.value), 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2.5 pl-3 pr-8 text-lg')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
               {months.map(m => <option key={m} value={m}>{String(m + 1).padStart(2, '0')} 月</option>)}
             </select>
-            <div className="absolute right-2 pointer-events-none text-[#A89F91] text-[10px]">▼</div>
+            <div className={`absolute ${s('right-2 text-[10px]', 'right-3 text-sm')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
           </div>
         </div>
-        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-2 text-[#8C8477] hover:bg-[#EFECE7] rounded-xl transition-colors active:scale-90"><ChevronRight className="w-5 h-5"/></button>
+        <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-2 text-[#8C8477] dark:text-[#A1988B] hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-xl transition-colors active:scale-90"><ChevronRight className={s('w-5 h-5', 'w-6 h-6')}/></button>
       </div>
-      <div className="grid grid-cols-7 gap-1.5 text-center mb-2 px-1">
-        {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className="text-[10px] text-[#C2BCB6] tracking-widest font-medium">{d}</div>)}
+      <div className={`grid grid-cols-7 ${s('gap-1.5 text-[10px] font-medium', 'gap-2 text-sm font-bold')} text-center mb-2 px-1 text-[#A89F91] dark:text-[#888888] tracking-widest`}>
+        {['S','M','T','W','T','F','S'].map((d, i) => <div key={i}>{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-1.5 px-1 pb-4">
+      <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-2')} px-1 pb-4`}>
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const dStr = getDateString(d);
           const isTarget = dStr === initialDate;
           const isToday = dStr === getDateString(new Date());
           return (
-            <button key={i} onClick={() => onSelect(dStr)} className={`aspect-square flex items-center justify-center rounded-xl text-xs transition-all active:scale-90 ${isTarget ? 'bg-[#8C8477] text-white font-medium shadow-md' : isToday ? 'border-2 border-[#D6D0C4] text-[#8C8477] font-medium bg-[#F9F8F6]' : 'text-[#5C5C5C] hover:bg-[#EFECE7] border border-transparent'}`}>
+            <button key={i} onClick={() => onSelect(dStr)} className={`aspect-square flex items-center justify-center transition-all active:scale-90 ${s('rounded-xl text-xs font-medium', 'rounded-2xl text-base font-bold')} ${isTarget ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] shadow-md' : isToday ? 'border-2 border-[#D6D0C4] dark:border-[#4A4A4A] text-[#8C8477] dark:text-[#A1988B] bg-[#F9F8F6] dark:bg-[#2A2A2A]' : 'text-[#5C5C5C] dark:text-[#D1D1D1] hover:bg-[#EFECE7] dark:hover:bg-[#333333] border border-transparent'}`}>
               {d.getDate()}
             </button>
           )
@@ -217,17 +222,52 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   const todayStrRef = useRef(getDateString(new Date()));
   const [todayStr, setTodayStr] = useState(todayStrRef.current);
   const [targetDate, setTargetDate] = useState(todayStrRef.current);
 
-  // 1. 同步從 LocalStorage 取得初始狀態 (瞬間顯示，消除閃爍)
   const [profile, setProfile] = useState(() => safeStorage.get('wt_profile')?.data || DEFAULT_PROFILE);
   const [records, setRecords] = useState(() => safeStorage.get('wt_records') || {});
 
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
+
+  const isLarge = profile.visualFriendly || false;
+  const themeMode = profile.themeMode || 'auto';
+  const s = (normal, large) => isLarge ? large : normal;
+
+  // --- 夜間模式與時間監聽邏輯 ---
+  useEffect(() => {
+    const checkTheme = () => {
+      let isDarkTheme = false;
+      if (themeMode === 'dark') {
+        isDarkTheme = true;
+      } else if (themeMode === 'light') {
+        isDarkTheme = false;
+      } else {
+        // 自動模式：早晨 6 點到晚上 6 點為亮色，其餘時間為夜間
+        const hour = new Date().getHours();
+        isDarkTheme = (hour < 6 || hour >= 18);
+      }
+      setIsDark(isDarkTheme);
+
+      // 強制寫入 html 標籤與 body 底色，徹底解決周圍白框問題
+      if (isDarkTheme) {
+        document.documentElement.classList.add('dark');
+        document.body.style.backgroundColor = '#121212';
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.style.backgroundColor = '#F7F5F2';
+      }
+    };
+    
+    checkTheme();
+    // 每分鐘重新檢查一次時間（支援跨日與自動切換）
+    const timer = setInterval(checkTheme, 60000);
+    return () => clearInterval(timer);
+  }, [themeMode]);
 
   useEffect(() => {
     const handleWake = () => {
@@ -269,7 +309,6 @@ export default function App() {
         let isMounted = true;
         
         try {
-          // --- 智慧比對 1: Profile ---
           const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
           const pSnap = await getDoc(profileRef);
           const rProfile = pSnap.exists() ? pSnap.data() : null;
@@ -279,20 +318,34 @@ export default function App() {
           const lTimeP = lProfileObj?.updatedAt || 0;
           const rTimeP = rProfile?._updatedAt || 0;
 
-          // 相容舊資料：若雲端有資料，且 (雲端較新、或兩者都沒有時間戳(舊資料)、或本地完全無資料)
           if (rProfile && (!lProfileObj || rTimeP >= lTimeP)) {
             if (isMounted) setProfile(rProfile);
             safeStorage.set('wt_profile', { data: rProfile, updatedAt: rTimeP || Date.now() });
           } else if (lProfileObj && lTimeP > rTimeP) {
-            // 本地比較新，上傳到雲端
             await setDoc(profileRef, lProfile, { merge: true });
           }
 
-          // --- 智慧比對 2: Records ---
           const recordsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records');
           const rSnap = await getDocs(recordsRef);
           const rRecords = {};
-          rSnap.forEach(d => { rRecords[d.id] = d.data(); });
+          
+          rSnap.forEach(d => { 
+            const id = d.id;
+            const data = d.data();
+            if (id.length === 10) { 
+              if (!rRecords[id] || (data._updatedAt || 0) > (rRecords[id]._updatedAt || 0)) {
+                rRecords[id] = data;
+              }
+            } else if (id.length === 7) { 
+              Object.keys(data).forEach(key => {
+                if (key.length === 10) { 
+                  if (!rRecords[key] || (data[key]._updatedAt || 0) > (rRecords[key]._updatedAt || 0)) {
+                    rRecords[key] = data[key];
+                  }
+                }
+              });
+            }
+          });
 
           const lRecords = safeStorage.get('wt_records') || {};
           const mergedRecords = { ...lRecords };
@@ -306,17 +359,15 @@ export default function App() {
             const lTime = lData?._updatedAt || 0;
 
             if (rData && !lData) {
-              mergedRecords[date] = rData; // 只有雲端有 (舊資料或新載入)
+              mergedRecords[date] = rData; 
             } else if (!rData && lData) {
-              mergedRecords[date] = lData; // 只有本地有
+              mergedRecords[date] = lData; 
               needsUpload.push({ date, data: lData });
             } else if (rData && lData) {
-              // 兩邊都有資料
               if (rTime >= lTime) {
-                // 雲端較新，或兩者都沒有時間戳（舊資料，以雲端為準）
                 mergedRecords[date] = rData;
               } else {
-                mergedRecords[date] = lData; // 本地較新
+                mergedRecords[date] = lData; 
                 needsUpload.push({ date, data: lData });
               }
             }
@@ -325,12 +376,21 @@ export default function App() {
           if (isMounted) setRecords(mergedRecords);
           safeStorage.set('wt_records', mergedRecords);
 
-          // 上傳本地較新的歷史紀錄
-          for (const item of needsUpload) {
-            await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records', item.date), item.data, { merge: true });
+          if (needsUpload.length > 0) {
+            const uploadsByMonth = {};
+            for (const item of needsUpload) {
+              const monthStr = item.date.substring(0, 7); 
+              if (!uploadsByMonth[monthStr]) uploadsByMonth[monthStr] = {};
+              uploadsByMonth[monthStr][item.date] = item.data;
+              if (!uploadsByMonth[monthStr]._updatedAt || item.data._updatedAt > (uploadsByMonth[monthStr]._updatedAt || 0)) {
+                uploadsByMonth[monthStr]._updatedAt = item.data._updatedAt;
+              }
+            }
+            for (const [monthStr, monthData] of Object.entries(uploadsByMonth)) {
+              await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records', monthStr), monthData, { merge: true });
+            }
           }
 
-          // --- 建立持續性監聽，但只在雲端有新資料時才覆蓋本地 ---
           if (unsubProfileRef.current) unsubProfileRef.current();
           unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
             if (snap.exists() && isMounted) {
@@ -349,7 +409,23 @@ export default function App() {
           unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
             if (!isMounted) return;
             const newRecs = {};
-            snap.forEach(d => { newRecs[d.id] = d.data(); });
+            snap.forEach(d => { 
+              const id = d.id;
+              const data = d.data();
+              if (id.length === 10) {
+                if (!newRecs[id] || (data._updatedAt || 0) > (newRecs[id]._updatedAt || 0)) {
+                  newRecs[id] = data;
+                }
+              } else if (id.length === 7) {
+                Object.keys(data).forEach(key => {
+                  if (key.length === 10) {
+                    if (!newRecs[key] || (data[key]._updatedAt || 0) > (newRecs[key]._updatedAt || 0)) {
+                      newRecs[key] = data[key];
+                    }
+                  }
+                });
+              }
+            });
             
             setRecords(prev => {
               let changed = false;
@@ -380,7 +456,6 @@ export default function App() {
     };
   }, []);
 
-  // --- 資料更新方法 (統一處理 Local + State + Remote) ---
   const updateProfile = async (newProps) => {
     setProfile(prev => {
       const updated = typeof newProps === 'function' ? newProps(prev) : { ...prev, ...newProps };
@@ -411,13 +486,16 @@ export default function App() {
 
     if (user) {
       setIsSyncing(true);
-      setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', operateDate), finalData, { merge: true })
+      const monthStr = operateDate.substring(0, 7);
+      setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'health_records', monthStr), {
+        [operateDate]: finalData,
+        _updatedAt: now
+      }, { merge: true })
         .catch(()=>{})
         .finally(() => setIsSyncing(false));
     }
   };
 
-  // --- 操作流程 ---
   const openCategoryFlow = (category, dateStr = targetDate) => {
     const dataObj = records[dateStr] || {};
     const hasData = getArrayData(dataObj, category).length > 0;
@@ -455,11 +533,7 @@ export default function App() {
     if (newArr.length === 0) setModalState(null);
   };
 
-  // ============================================================================
-  // 核心資料計算
-  // ============================================================================
   const currentData = records[targetDate] || {};
-  
   const arrWeight = getArrayData(currentData, 'weight');
   const arrWater = getArrayData(currentData, 'water');
   const arrDiet = getArrayData(currentData, 'diet');
@@ -522,9 +596,11 @@ export default function App() {
     }
   }
 
-  // --- 計算機元件 ---
-  const Calculator = ({ onSave, title, placeholder, initialValue = "", showDecimals = true }) => {
+  // --- 計算機 ---
+  const Calculator = ({ onSave, title, placeholder, initialValue = "", isLarge }) => {
+    const s = (n, l) => isLarge ? l : n;
     const [expr, setExpr] = useState(initialValue);
+    
     const handlePress = (val) => {
       if (val === 'C') { setExpr(''); return; }
       if (val === 'DEL') { setExpr(prev => prev.slice(0, -1)); return; }
@@ -532,7 +608,9 @@ export default function App() {
         try {
           // eslint-disable-next-line no-new-func
           const result = new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)();
-          setExpr(String(Math.round(result * 100) / 100)); 
+          if(!isNaN(result) && isFinite(result)) {
+            setExpr(String(Math.round(result * 100) / 100)); 
+          }
         } catch (e) { setExpr('Error'); setTimeout(() => setExpr(''), 1000); }
         return;
       }
@@ -551,25 +629,59 @@ export default function App() {
       if (finalVal || finalVal === '') onSave(finalVal);
     };
 
-    const btns = ['7','8','9','÷','4','5','6','×','1','2','3','-','C','0', showDecimals ? '.' : 'DEL','+'];
-    if (!showDecimals) btns[14] = 'DEL'; 
+    // 將所有按鈕佈局設定好，支援等於符號跨列與 0 跨欄
+    const btns = [
+      { label: 'C', col: 1 }, { label: 'DEL', col: 1 }, { label: '÷', col: 1 }, { label: '×', col: 1 },
+      { label: '7', col: 1 }, { label: '8', col: 1 }, { label: '9', col: 1 }, { label: '-', col: 1 },
+      { label: '4', col: 1 }, { label: '5', col: 1 }, { label: '6', col: 1 }, { label: '+', col: 1 },
+      { label: '1', col: 1 }, { label: '2', col: 1 }, { label: '3', col: 1 }, { label: '=', col: 1, row: 2, isEq: true },
+      { label: '0', col: 2 }, { label: '.', col: 1 }
+    ];
+
+    const displayStr = expr || placeholder;
+    
+    // 動態縮放字體的邏輯
+    const getFontSize = (text) => {
+      const len = text.length;
+      if (isLarge) {
+        if (len <= 7) return '3rem'; // 48px
+        if (len <= 10) return '2.25rem'; // 36px
+        if (len <= 14) return '1.875rem'; // 30px
+        return '1.5rem'; // 24px
+      } else {
+        if (len <= 7) return '2.25rem'; // 36px
+        if (len <= 10) return '1.875rem'; // 30px
+        if (len <= 14) return '1.5rem'; // 24px
+        return '1.25rem'; // 20px
+      }
+    };
 
     return (
-      <div className="flex flex-col gap-4">
-        <div className="bg-[#F9F8F6] border border-[#E8E4DF] rounded-2xl p-4 flex flex-col items-end justify-center h-20 overflow-hidden">
-          <p className="text-[#A89F91] text-[10px] tracking-widest font-light">{title}</p>
-          <p className="text-3xl font-light text-[#4A4A4A] tracking-wider truncate w-full text-right">{expr || placeholder}</p>
+      <div className="flex flex-col gap-3">
+        <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-5 min-h-[7.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all`}>
+          <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-sm')} tracking-widest font-medium mb-1`}>{title}</p>
+          <p 
+            className="font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1" 
+            style={{ fontSize: getFontSize(displayStr) }}
+          >
+            {displayStr}
+          </p>
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2.5')}`}>
           {btns.map(btn => (
-            <button key={btn} type="button" onClick={() => handlePress(btn)}
-              className={`h-14 rounded-2xl font-light text-xl flex items-center justify-center transition-colors active:scale-95
-                ${['÷','×','-','+'].includes(btn) ? 'bg-[#EFECE7] text-[#8C8477]' : btn === 'C' || btn === 'DEL' ? 'bg-[#F7EFEA] text-[#C4A495]' : 'bg-white border border-[#F0ECE7] text-[#5C5C5C]'}`}
+            <button key={btn.label} type="button" onClick={() => handlePress(btn.label)}
+              className={`${s('h-12 text-xl', 'h-14 text-2xl')} rounded-2xl font-light flex items-center justify-center transition-colors active:scale-95
+                ${btn.col === 2 ? 'col-span-2' : 'col-span-1'}
+                ${btn.row === 2 ? 'row-span-2' : 'row-span-1'}
+                ${btn.isEq ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212]' : 
+                  ['÷','×','-','+'].includes(btn.label) ? 'bg-[#EFECE7] dark:bg-[#333333] text-[#8C8477] dark:text-[#A1988B]' : 
+                  ['C','DEL'].includes(btn.label) ? 'bg-[#F7EFEA] dark:bg-[#2D2520] text-[#C4A495] dark:text-[#C4A495]' : 
+                  'bg-white dark:bg-[#1E1E1E] border border-[#F0ECE7] dark:border-[#333333] text-[#5C5C5C] dark:text-[#D1D1D1]'}`}
             >
-              {btn === 'DEL' ? <Delete className="w-5 h-5 stroke-[1.5]"/> : btn}
+              {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : btn.label}
             </button>
           ))}
-          <button onClick={handleConfirm} className="col-span-4 h-14 bg-[#8C8477] text-white rounded-2xl font-medium tracking-widest active:scale-95 transition-all mt-2 flex items-center justify-center gap-2">
+          <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-lg')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
             儲存紀錄
           </button>
         </div>
@@ -577,60 +689,59 @@ export default function App() {
     );
   };
 
-  // --- 畫面渲染 ---
   const renderHome = () => (
-    <div className="p-6 space-y-4 animate-in fade-in duration-500 pb-28">
-      <div className="flex items-center justify-between bg-white p-3.5 rounded-3xl border border-[#F0ECE7] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-        <button onClick={() => setModalState({ view: 'datepicker' })} className="flex items-center gap-2.5 text-[#5C5C5C] font-medium tracking-wider text-sm active:scale-95 transition-transform">
-          <div className="w-8 h-8 rounded-xl bg-[#F9F8F6] flex items-center justify-center border border-[#E8E4DF]">
-            <CalendarIcon className="w-4 h-4 text-[#8C8477] stroke-[1.5]" />
+    <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
+      <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+        <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-lg font-bold gap-3')}`}>
+          <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+            <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
           </div>
           {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
         </button>
         {targetDate !== todayStr && (
-          <button onClick={() => setTargetDate(todayStr)} className="text-[10px] tracking-widest bg-[#F9F8F6] border border-[#E8E4DF] px-3 py-1.5 rounded-xl text-[#8C8477] active:scale-95 transition-all font-medium">回今日</button>
+          <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-sm px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium`}>回今日</button>
         )}
       </div>
 
-      <div className="bg-[#EFECE7] rounded-3xl p-6 shadow-sm border border-[#E8E4DF] relative overflow-hidden">
+      <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-7')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
         <div className="relative z-10 flex justify-between items-start">
           <div>
-            <p className="text-[#8C8477] text-[9px] tracking-widest font-medium mb-1">WEIGHT</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-5xl font-light text-[#4A4A4A] tracking-tight">{latestWeight || '--'}</span>
-              <span className="text-sm text-[#8C8477] font-light">kg</span>
+            <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-sm font-bold mb-2')} tracking-widest font-medium`}>WEIGHT</p>
+            <div className={`flex items-baseline ${s('gap-1', 'gap-2')}`}>
+              <span className={`${s('text-5xl', 'text-6xl')} font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight`}>{latestWeight || '--'}</span>
+              <span className={`${s('text-sm', 'text-xl font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
             </div>
             {weightChange && (
-              <div className="inline-flex items-center mt-3 px-3 py-1 rounded-full text-[10px] font-medium bg-white/50 text-[#7A756D] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+              <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-4 py-1.5 text-sm font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
                 較前次 {Number(weightChange) > 0 ? '+' : ''}{weightChange} kg
               </div>
             )}
           </div>
-          <WeightScaleIcon className="w-10 h-10 text-[#D6D0C4] opacity-50 stroke-1" />
+          <WeightScaleIcon className={`${s('w-10 h-10', 'w-16 h-16')} text-[#D6D0C4] dark:text-[#4A4A4A] opacity-50 stroke-1`} />
         </div>
-        <div className="mt-6 pt-4 border-t border-[#D6D0C4]/40 relative z-10">
-          <p className="text-[#8C8477] text-[9px] tracking-widest mb-1.5">INTAKE / TDEE</p>
-          <div className="flex items-end gap-1">
-            <span className="font-medium text-[#5C5C5C] text-lg leading-none">{totalIntake}</span>
-            <span className="text-[#A89F91] font-light text-sm leading-none pb-[1px]">/ {tdee} kcal</span>
+        <div className={`mt-6 ${s('pt-4', 'pt-5')} border-t border-[#D6D0C4]/40 dark:border-[#4A4A4A]/40 relative z-10`}>
+          <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-sm font-bold mb-2')} tracking-widest`}>INTAKE / TDEE</p>
+          <div className={`flex items-end ${s('gap-1', 'gap-1.5')}`}>
+            <span className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-lg', 'text-3xl font-bold')} leading-none`}>{totalIntake}</span>
+            <span className={`text-[#A89F91] dark:text-[#888888] font-light ${s('text-sm pb-[1px]', 'text-lg font-medium pb-[2px]')} leading-none`}>/ {tdee} kcal</span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid grid-cols-2 ${s('gap-3', 'gap-4')}`}>
         {[
-          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB]', color: 'text-[#A89F91]' },
-          { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4]', color: 'text-[#93A3B1]' },
-          { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED]', color: 'text-[#9AA899]' },
-          { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA]', color: 'text-[#C4A495]' }
+          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
+          { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
+          { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
+          { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
         ].map(card => (
-          <button key={card.id} onClick={() => openCategoryFlow(card.id)} className="bg-white p-5 rounded-3xl border border-[#F0ECE7] flex flex-col items-start gap-3 active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)]">
-            <div className={`w-9 h-9 rounded-2xl ${card.bg} flex items-center justify-center`}>
-              <card.icon className={`w-4 h-4 ${card.color} stroke-[1.5]`} />
+          <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-5 gap-3', 'p-6 gap-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)]`}>
+            <div className={`${s('w-9 h-9', 'w-12 h-12')} rounded-2xl ${card.bg} flex items-center justify-center`}>
+              <card.icon className={`${s('w-4 h-4', 'w-6 h-6')} ${card.color} stroke-[1.5]`} />
             </div>
             <div>
-              <h3 className="font-medium text-[#5C5C5C] text-[11px] tracking-widest">{card.title}</h3>
-              <p className="text-[10px] text-[#C2BCB6] mt-1 font-light tracking-wide">{card.val}</p>
+              <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-[11px]', 'text-base font-bold')}`}>{card.title}</h3>
+              <p className={`${s('text-[10px] mt-1 font-light', 'text-sm mt-1.5 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>{card.val}</p>
             </div>
           </button>
         ))}
@@ -648,14 +759,14 @@ export default function App() {
     const isEx = category === 'exercise';
 
     const ModalLayout = ({ title, onBack, children }) => (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] max-h-[90vh] overflow-y-auto relative">
-          <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-2">
-            <div className="flex items-center gap-2">
-              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] active:scale-90"><ChevronLeft className="w-5 h-5 stroke-[1.5]"/></button>}
-              <h2 className="text-[13px] font-medium text-[#5C5C5C] tracking-widest">{title}</h2>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-7')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] overflow-y-auto relative`}>
+          <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-6 pb-3')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10`}>
+            <div className={`flex items-center ${s('gap-2', 'gap-3')}`}>
+              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90"><ChevronLeft className={`${s('w-5 h-5', 'w-7 h-7')} stroke-[1.5]`}/></button>}
+              <h2 className={`${s('text-[13px] font-medium', 'text-lg font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest`}>{title}</h2>
             </div>
-            <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] rounded-full text-[#A89F91] active:scale-90"><X className="w-4 h-4" /></button>
+            <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90"><X className={`${s('w-4 h-4', 'w-6 h-6')}`} /></button>
           </div>
           {children}
         </div>
@@ -665,7 +776,7 @@ export default function App() {
     if (view === 'datepicker') {
       return (
         <ModalLayout title="選擇日期">
-          <DashboardDatePicker initialDate={targetDate} onSelect={(d) => { setTargetDate(d); setModalState(null); }} />
+          <DashboardDatePicker initialDate={targetDate} onSelect={(d) => { setTargetDate(d); setModalState(null); }} isLarge={isLarge} />
         </ModalLayout>
       );
     }
@@ -689,11 +800,12 @@ export default function App() {
                 isDiet={isDiet}
                 isEx={isEx}
                 catConfig={catConfig}
+                isLarge={isLarge}
               />
             ))}
           </div>
-          <button onClick={() => setModalState({ view: (isDiet || isEx) ? 'select' : 'calc', category, dateStr: operateDate })} className="absolute bottom-6 right-6 w-14 h-14 bg-[#8C8477] text-white rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(140,132,119,0.4)] active:scale-90 transition-transform">
-            <Plus className="w-6 h-6 stroke-[1.5]" />
+          <button onClick={() => setModalState({ view: (isDiet || isEx) ? 'select' : 'calc', category, dateStr: operateDate })} className={`absolute bottom-6 right-6 ${s('w-14 h-14', 'w-16 h-16')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(140,132,119,0.4)] active:scale-90 transition-transform`}>
+            <Plus className={`${s('w-6 h-6 stroke-[1.5]', 'w-8 h-8 stroke-[2]')}`} />
           </button>
         </ModalLayout>
       );
@@ -701,19 +813,19 @@ export default function App() {
 
     if (view === 'select') {
       const cards = isDiet ? profile.dietCards : profile.exerciseCards;
-      const colorClass = isDiet ? 'text-[#9AA899] bg-[#EEF2ED] border-[#D6E0D5]' : 'text-[#C4A495] bg-[#F7EFEA] border-[#E8D9D1]';
+      const colorClass = isDiet ? 'text-[#9AA899] dark:text-[#9AA899] bg-[#EEF2ED] dark:bg-[#222B21] border-[#D6E0D5] dark:border-[#2C3B2A]' : 'text-[#C4A495] dark:text-[#C4A495] bg-[#F7EFEA] dark:bg-[#2D2520] border-[#E8D9D1] dark:border-[#3D302A]';
       return (
         <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid grid-cols-3 ${s('gap-3', 'gap-4')}`}>
             {cards.map(card => (
-              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border bg-white active:bg-gray-50 transition-colors shadow-sm ${colorClass.replace('bg-','border-').replace('text-','').split(' ')[2]}`}>
-                <DynamicIcon name={card.icon} className={`w-6 h-6 stroke-[1.5] ${colorClass.split(' ')[0]}`} />
-                <span className="text-[10px] font-medium text-[#5C5C5C]">{card.name}</span>
+              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-5 gap-3')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm ${colorClass.split(' ')[2]}`}>
+                <DynamicIcon name={card.icon} className={`${s('w-6 h-6', 'w-8 h-8')} stroke-[1.5] ${colorClass.split(' ')[0]}`} />
+                <span className={`${s('text-[10px]', 'text-sm font-bold')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{card.name}</span>
               </button>
             ))}
-            <button onClick={() => setModalState({ view: 'new_card', category, dateStr: operateDate })} className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed border-[#D6D0C4] bg-white text-[#A89F91] active:bg-[#F9F8F6]">
-              <Plus className="w-5 h-5 stroke-[1.5]" />
-              <span className="text-[9px] tracking-widest">新增</span>
+            <button onClick={() => setModalState({ view: 'new_card', category, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2 border', 'p-5 gap-3 border-2')} rounded-2xl border-dashed border-[#D6D0C4] dark:border-[#4A4A4A] bg-white dark:bg-[#1E1E1E] text-[#A89F91] dark:text-[#888888] active:bg-[#F9F8F6] dark:active:bg-[#2A2A2A]`}>
+              <Plus className={`${s('w-5 h-5', 'w-8 h-8')} stroke-[1.5]`} />
+              <span className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest`}>新增</span>
             </button>
           </div>
         </ModalLayout>
@@ -721,26 +833,30 @@ export default function App() {
     }
 
     if (view === 'calc') {
-      let title = '', initial = '', showDec = true;
-      if (category === 'weight') { title = '體重 (kg)'; initial = String(item?.value || ''); }
-      else if (category === 'water') { title = '飲水量 (ml)'; initial = String(item?.value || ''); showDec = false; }
-      else if (isDiet) { title = `熱量 (kcal)`; initial = String(item?.calories ?? item?.value ?? ''); showDec = false; }
-      else if (isEx) { title = `消耗 (kcal)`; initial = String(item?.calories ?? item?.value ?? ''); showDec = false; }
+      let title = '';
+      if (category === 'weight') title = '體重 (kg)';
+      else if (category === 'water') title = '飲水量 (ml)';
+      else if (isDiet) title = `熱量 (kcal)`;
+      else if (isEx) title = `消耗 (kcal)`;
+
+      const initial = (category === 'weight' || category === 'water') 
+        ? String(item?.value || '') 
+        : String(item?.calories ?? item?.value ?? '');
 
       return (
         <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
           {(isDiet || isEx) && (
-            <div className="mb-4">
-              <label className="text-[10px] tracking-widest text-[#8C8477] mb-2 block">項目名稱</label>
-              <input id="editNameInput" defaultValue={item?.content || item?.type || ''} placeholder="輸入名稱" className="w-full p-3.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-sm font-medium" />
+            <div className={s('mb-4', 'mb-5')}>
+              <label className={`${s('text-[10px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-2 block`}>項目名稱</label>
+              <input id="editNameInput" defaultValue={item?.content || item?.type || ''} placeholder="輸入名稱" className={`w-full ${s('p-3.5 text-sm', 'p-4 text-lg font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
             </div>
           )}
-          <Calculator title={title} placeholder="0" showDecimals={showDec} initialValue={initial} onSave={(val) => {
+          <Calculator title={title} placeholder="0" initialValue={initial} isLarge={isLarge} onSave={(val) => {
             const nameVal = document.getElementById('editNameInput')?.value || item?.content || item?.type;
             const dataToSave = (isDiet) ? { content: nameVal, calories: val } : (isEx) ? { type: nameVal, calories: val } : { value: val };
             handleSaveData(category, dataToSave);
           }} />
-          {(isDiet || isEx) && <p className="text-center text-[9px] text-[#C2BCB6] mt-4 tracking-wide font-light">若留空或輸入 0，將單純紀錄有執行此項目。</p>}
+          {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-4 font-light', 'text-xs mt-5 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
         </ModalLayout>
       );
     }
@@ -758,25 +874,25 @@ export default function App() {
             if(isDiet) updateProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
             else updateProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
             setModalState({view: 'select', category, dateStr: operateDate});
-          }} className="space-y-5">
+          }} className={s('space-y-5', 'space-y-6')}>
             <div>
-              <label className="text-[10px] tracking-widest text-[#8C8477] mb-2 block">名稱</label>
-              <input name="cardName" type="text" placeholder="例如：拿鐵" required className="w-full p-3.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-sm" />
+              <label className={`${s('text-[10px] mb-2', 'text-sm font-bold mb-2.5')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>名稱</label>
+              <input name="cardName" type="text" placeholder="例如：拿鐵" required className={`w-full ${s('p-3.5 text-sm', 'p-4 text-lg font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
             </div>
             <div>
-              <label className="text-[10px] tracking-widest text-[#8C8477] mb-2 block">圖標</label>
-              <div className="grid grid-cols-4 gap-2">
+              <label className={`${s('text-[10px] mb-2', 'text-sm font-bold mb-2.5')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>圖標</label>
+              <div className={`grid grid-cols-4 ${s('gap-2', 'gap-3')}`}>
                 {availableIcons.map((ic, i) => (
                   <label key={ic} className="cursor-pointer">
                     <input type="radio" name="iconSelect" value={ic} defaultChecked={i===0} className="peer hidden" />
-                    <div className="flex justify-center py-3.5 border border-[#F0ECE7] rounded-xl text-[#C2BCB6] peer-checked:border-[#8C8477] peer-checked:text-[#8C8477] peer-checked:bg-[#F5F2EB] transition-all">
-                      <DynamicIcon name={ic} className="w-5 h-5 stroke-[1.5]" />
+                    <div className={`flex justify-center ${s('py-3.5', 'py-4')} border border-[#F0ECE7] dark:border-[#333333] rounded-xl text-[#C2BCB6] dark:text-[#666666] peer-checked:border-[#8C8477] peer-checked:dark:border-[#A1988B] peer-checked:text-[#8C8477] peer-checked:dark:text-[#A1988B] peer-checked:bg-[#F5F2EB] peer-checked:dark:bg-[#2C2A25] transition-all`}>
+                      <DynamicIcon name={ic} className={`${s('w-5 h-5', 'w-7 h-7')} stroke-[1.5]`} />
                     </div>
                   </label>
                 ))}
               </div>
             </div>
-            <button type="submit" className="w-full py-4 bg-[#8C8477] text-white rounded-xl text-xs font-medium tracking-widest active:scale-95 mt-4">儲存卡片</button>
+            <button type="submit" className={`w-full ${s('py-4 text-xs mt-4', 'py-4 text-base font-bold mt-6')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95`}>儲存卡片</button>
           </form>
         </ModalLayout>
       );
@@ -784,29 +900,29 @@ export default function App() {
   };
 
   return (
-    <div className="max-w-md mx-auto h-[100dvh] flex flex-col bg-[#F7F5F2] font-sans text-[#4A4A4A] overflow-hidden shadow-2xl relative">
-      <header className="bg-[#F7F5F2]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] sticky top-0">
-        <div className="text-[11px] font-medium text-[#5C5C5C] tracking-[0.2em] uppercase flex items-center gap-2">
+    <div className={`max-w-md mx-auto min-h-[100dvh] flex flex-col bg-[#F7F5F2] dark:bg-[#121212] font-sans text-[#4A4A4A] dark:text-[#E8E8E8] shadow-2xl relative ${isDark ? 'dark' : ''}`}>
+      <header className="bg-[#F7F5F2]/90 dark:bg-[#121212]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] dark:border-[#2A2A2A] sticky top-0">
+        <div className={`${s('text-[11px] font-medium', 'text-base font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-[0.2em] uppercase flex items-center gap-2`}>
           {activeTab === 'home' && 'Dashboard'}
           {activeTab === 'calendar' && 'Calendar'}
           {activeTab === 'trend' && 'Analytics'}
           {activeTab === 'settings' && 'Profile'}
-          {isSyncing ? <RefreshCw className="w-3 h-3 text-[#C4A495] animate-spin" /> : user && !user.isAnonymous ? <Cloud className="w-3 h-3 text-[#9AA899]" /> : <CloudOff className="w-3 h-3 text-[#C2BCB6]" />}
+          {isSyncing ? <RefreshCw className={`${s('w-3 h-3', 'w-5 h-5')} text-[#C4A495] animate-spin`} /> : user && !user.isAnonymous ? <Cloud className={`${s('w-3 h-3', 'w-5 h-5')} text-[#9AA899]`} /> : <CloudOff className={`${s('w-3 h-3', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666]`} />}
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
         {activeTab === 'home' && renderHome()}
-        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} />}
-        {activeTab === 'trend' && <TrendChart records={records} />}
-        {activeTab === 'settings' && <SettingsView profile={profile} updateProfile={updateProfile} user={user} auth={auth} />}
+        {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} isLarge={isLarge} />}
+        {activeTab === 'trend' && <TrendChart records={records} isLarge={isLarge} />}
+        {activeTab === 'settings' && <SettingsView profile={profile} updateProfile={updateProfile} user={user} auth={auth} isLarge={isLarge} />}
       </main>
 
-      <nav className="bg-[#F7F5F2]/95 backdrop-blur-md border-t border-[#EBE8E3] px-2 pt-2 pb-6 flex justify-around items-center fixed bottom-0 w-full max-w-md z-40">
-        <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Home} label="首頁" />
-        <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={CalendarIcon} label="月曆" />
-        <NavButton active={activeTab === 'trend'} onClick={() => setActiveTab('trend')} icon={TrendingUp} label="趨勢" />
-        <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="設定" />
+      <nav className={`bg-[#F7F5F2]/95 dark:bg-[#121212]/95 backdrop-blur-md border-t border-[#EBE8E3] dark:border-[#2A2A2A] px-2 ${s('pt-2 pb-6', 'pt-3 pb-8')} flex justify-around items-center fixed bottom-0 w-full max-w-md z-40`}>
+        <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Home} label="首頁" isLarge={isLarge} />
+        <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
+        <NavButton active={activeTab === 'trend'} onClick={() => setActiveTab('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
+        <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={Settings} label="設定" isLarge={isLarge} />
       </nav>
 
       {renderModals()}
@@ -815,18 +931,20 @@ export default function App() {
 }
 
 // 底部按鈕
-function NavButton({ active, onClick, icon: Icon, label }) {
+function NavButton({ active, onClick, icon: Icon, label, isLarge }) {
+  const s = (n, l) => isLarge ? l : n;
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center gap-1 p-2 w-16 bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] -translate-y-1' : 'text-[#C2BCB6] hover:text-[#A89F91]'}`}>
-      <Icon className={`w-[18px] h-[18px] ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
-      <span className="text-[9px] tracking-widest font-medium m-0">{label}</span>
-      <div className={`w-1 h-1 rounded-full bg-[#8C8477] mt-0.5 transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`} />
+    <button onClick={onClick} className={`flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1.5 p-2 w-20')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
+      <Icon className={`${s('w-[18px] h-[18px]', 'w-7 h-7')} ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
+      <span className={`${s('text-[9px] font-medium', 'text-xs font-bold')} tracking-widest m-0`}>{label}</span>
+      <div className={`${s('w-1 h-1 mt-0.5', 'w-1.5 h-1.5 mt-1')} rounded-full bg-[#8C8477] dark:bg-[#A1988B] transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`} />
     </button>
   );
 }
 
 // --- 月曆元件 ---
-function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
+function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge }) {
+  const s = (n, l) => isLarge ? l : n;
   const [viewMode, setViewMode] = useState(initialMode);
   const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const swipeContainerRef = useRef(null);
@@ -921,25 +1039,25 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
   const month = currentMonth.getMonth();
 
   return (
-    <div className="p-6 pb-28 animate-in fade-in duration-500 overflow-hidden">
-      <div className="flex border-b border-[#E8E4DF] mb-6">
+    <div className={`p-6 animate-in fade-in duration-500 overflow-hidden ${s('pb-28', 'pb-32')}`}>
+      <div className="flex border-b border-[#E8E4DF] dark:border-[#3A3A3A] mb-6">
         {[{ id: 'weight', label: '體重' }, { id: 'diet', label: '飲食' }, { id: 'exercise', label: '運動' }].map(mode => (
-          <button key={mode.id} onClick={() => setViewMode(mode.id)} className={`flex-1 pb-2 text-[10px] tracking-widest transition-all relative ${viewMode === mode.id ? 'text-[#8C8477] font-medium' : 'text-[#C2BCB6] font-light'}`}>
+          <button key={mode.id} onClick={() => setViewMode(mode.id)} className={`flex-1 ${s('pb-2 text-[10px]', 'pb-3.5 text-sm')} tracking-widest transition-all relative ${viewMode === mode.id ? `text-[#8C8477] dark:text-[#A1988B] ${s('font-medium', 'font-bold')}` : `text-[#C2BCB6] dark:text-[#666666] ${s('font-light', 'font-medium')}`}`}>
             {mode.label}
-            {viewMode === mode.id && <div className="absolute bottom-0 left-0 w-full border-b-[2px] border-[#8C8477]" />}
+            {viewMode === mode.id && <div className={`absolute bottom-0 left-0 w-full border-[#8C8477] dark:border-[#A1988B] ${s('border-b-[2px]', 'border-b-[3px]')}`} />}
           </button>
         ))}
       </div>
 
       <div className="flex justify-between items-center mb-5 px-1">
-        <button onClick={() => shiftMonth(-1)} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90 transition-transform"><ChevronLeft className="w-4 h-4" /></button>
-        <h2 className="text-xs font-medium tracking-[0.2em] text-[#5C5C5C]">{year} . {String(month + 1).padStart(2, '0')}</h2>
-        <button onClick={() => shiftMonth(1)} className="p-1.5 hover:bg-[#EFECE7] rounded-full text-[#8C8477] active:scale-90 transition-transform"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => shiftMonth(-1)} className={`${s('p-1.5', 'p-2')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronLeft className={s('w-4 h-4', 'w-6 h-6')} /></button>
+        <h2 className={`${s('text-xs font-medium', 'text-base font-bold')} tracking-[0.2em] text-[#5C5C5C] dark:text-[#D1D1D1]`}>{year} . {String(month + 1).padStart(2, '0')}</h2>
+        <button onClick={() => shiftMonth(1)} className={`${s('p-1.5', 'p-2')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronRight className={s('w-4 h-4', 'w-6 h-6')} /></button>
       </div>
 
       <div className="w-full relative">
         <div className="grid grid-cols-7 gap-1.5 mb-2">
-          {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className="text-center text-[9px] tracking-widest font-medium text-[#C2BCB6]">{d}</div>)}
+          {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className={`text-center tracking-widest text-[#C2BCB6] dark:text-[#666666] ${s('text-[9px] font-medium', 'text-xs font-bold')}`}>{d}</div>)}
         </div>
 
         <div className="-mr-6">
@@ -952,7 +1070,8 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
               <div key={mData.id} className="w-1/5 shrink-0 pr-6">
                 <div className="grid grid-cols-7 gap-1.5">
                   {mData.days.map((date, idx) => {
-                    if (!date) return <div key={`e-${idx}`} className="h-[3.8rem] bg-transparent pointer-events-none"></div>;
+                    const heightClass = s('h-[3.8rem]', 'h-[4.8rem]');
+                    if (!date) return <div key={`e-${idx}`} className={`${heightClass} bg-transparent pointer-events-none`}></div>;
                     
                     const dStr = getDateString(date);
                     const dayData = records[dStr] || {};
@@ -970,25 +1089,26 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
                         }
                         const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
+                        const iconSize = s("5", "8");
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          if (nDiff > 0) diffEl = <span className="text-[8px] text-[#9AA899] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else if (nDiff < 0) diffEl = <span className="text-[8px] text-[#C78D87] font-medium flex items-center gap-[1px] mt-0.5"><svg width="5" height="5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else diffEl = <span className="text-[8px] text-[#C2BCB6] font-light mt-0.5">- 0.00</span>;
+                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[11px] mt-1')} text-[#9AA899] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[11px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[11px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666]`}>- 0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center"><span className="font-medium text-[#5C5C5C] text-[11px] leading-none">{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-base')} leading-none`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className="text-[10px] font-medium text-[#9AA899]">{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <span className={`${s('text-[10px]', 'text-sm')} font-bold text-[#9AA899]`}>{cals > 0 ? cals : '✓'}</span>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className="text-[10px] font-medium text-[#C4A495]">{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <span className={`${s('text-[10px]', 'text-sm')} font-bold text-[#C4A495]`}>{cals > 0 ? cals : '✓'}</span>;
                       }
                     }
 
                     return (
-                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`h-[3.8rem] rounded-[10px] p-1 flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] border-[#D6D0C4]' : 'bg-white border-[#F0ECE7]'}`}>
-                        <span className={`text-[8px] font-medium mb-1 ${isToday ? 'text-[#8C8477]' : 'text-[#A89F91]'}`}>{date.getDate()}</span>
+                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-2')} flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
+                        <span className={`${s('text-[8px] mb-1 font-medium', 'text-xs mb-1.5 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'}`}>{date.getDate()}</span>
                         <div className="flex-1 flex items-center justify-center pointer-events-none">{cellContent}</div>
                       </button>
                     );
@@ -999,13 +1119,14 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
           </div>
         </div>
       </div>
-      <p className="text-center text-[9px] text-[#C2BCB6] mt-6 tracking-widest font-light">點擊日期即可查看或編輯紀錄，左右滑動可切換月份</p>
+      <p className={`text-center text-[#C2BCB6] dark:text-[#666666] tracking-widest ${s('text-[9px] mt-6 font-light', 'text-xs mt-8 font-medium')}`}>點擊日期即可查看或編輯紀錄，左右滑動切換月份</p>
     </div>
   );
 }
 
 // --- 趨勢圖表 ---
-function TrendChart({ records }) {
+function TrendChart({ records, isLarge }) {
+  const s = (n, l) => isLarge ? l : n;
   const [range, setRange] = useState('1M'); 
   
   const weightData = React.useMemo(() => {
@@ -1024,12 +1145,12 @@ function TrendChart({ records }) {
 
   if (weightData.length < 2) {
     return (
-      <div className="p-6 pb-28 animate-in fade-in">
-        <TrendFilters range={range} setRange={setRange} />
-        <div className="text-center text-[#A89F91] mt-24">
-          <TrendingUp className="w-8 h-8 mx-auto text-[#D6D0C4] mb-4 stroke-[1.5]" />
-          <p className="font-medium tracking-widest text-[10px]">資料不足</p>
-          <p className="text-[9px] mt-2 font-light">需要兩天以上的紀錄來產生趨勢線</p>
+      <div className={`p-6 animate-in fade-in ${s('pb-28', 'pb-32')}`}>
+        <TrendFilters range={range} setRange={setRange} isLarge={isLarge} />
+        <div className={`text-center text-[#A89F91] dark:text-[#888888] ${s('mt-24', 'mt-28')}`}>
+          <TrendingUp className={`${s('w-8 h-8', 'w-12 h-12')} mx-auto text-[#D6D0C4] dark:text-[#4A4A4A] mb-4 stroke-[1.5]`} />
+          <p className={`tracking-widest ${s('font-medium text-[10px]', 'font-bold text-sm')}`}>資料不足</p>
+          <p className={`${s('text-[9px]', 'text-xs font-medium')} mt-2 font-light`}>需要兩天以上的紀錄來產生趨勢線</p>
         </div>
       </div>
     );
@@ -1044,7 +1165,7 @@ function TrendChart({ records }) {
 
   const width = 320;
   const height = 180;
-  const paddingX = 20; 
+  const paddingX = s(20, 25); 
   const paddingY = 25;
 
   const points = weightData.map((d, i) => ({
@@ -1066,12 +1187,12 @@ function TrendChart({ records }) {
   });
 
   return (
-    <div className="p-6 pb-28 animate-in fade-in duration-500 flex flex-col gap-5">
-      <TrendFilters range={range} setRange={setRange} />
-      <div className="bg-white p-5 rounded-3xl border border-[#F0ECE7]">
+    <div className={`p-6 animate-in fade-in duration-500 flex flex-col gap-5 ${s('pb-28', 'pb-32')}`}>
+      <TrendFilters range={range} setRange={setRange} isLarge={isLarge} />
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-5', 'p-6')}`}>
         <div className="flex justify-between items-end mb-6 px-1">
-          <h2 className="text-[10px] font-medium tracking-[0.2em] text-[#8C8477] uppercase">Weight Trend</h2>
-          <span className="text-[9px] text-[#A89F91] font-light">{weightData[0].date.replace(/-/g, '.')} ~ {weightData[weightData.length-1].date.replace(/-/g, '.')}</span>
+          <h2 className={`${s('text-[10px] font-medium', 'text-sm font-bold')} tracking-[0.2em] text-[#8C8477] dark:text-[#A1988B] uppercase`}>Weight Trend</h2>
+          <span className={`${s('text-[9px] font-light', 'text-xs font-medium')} text-[#A89F91] dark:text-[#888888]`}>{weightData[0].date.replace(/-/g, '.')} ~ {weightData[weightData.length-1].date.replace(/-/g, '.')}</span>
         </div>
         <div className="overflow-x-auto overflow-y-hidden custom-scrollbar pb-2">
           <svg width={width} height={height} className="mx-auto overflow-visible">
@@ -1080,20 +1201,20 @@ function TrendChart({ records }) {
               const val = Math.round(maxW - r * (maxW - minW));
               return (
                 <g key={`y-${r}`}>
-                  <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="#F0ECE7" strokeWidth="1" strokeDasharray="3 3" />
-                  <text x={paddingX - 6} y={y + 3} fontSize="8" fill="#C2BCB6" textAnchor="end" className="font-light">{val}</text>
+                  <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} className="stroke-[#F0ECE7] dark:stroke-[#333333]" strokeWidth="1" strokeDasharray="3 3" />
+                  <text x={paddingX - 8} y={y + 4} fontSize={s("8", "12")} className={`fill-[#C2BCB6] dark:fill-[#666666] ${s('font-light', 'font-medium')}`} textAnchor="end">{val}</text>
                 </g>
               );
             })}
             
             {xAxisLabels.map((lbl, i) => (
               <g key={`x-${i}`}>
-                <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={height - paddingY} stroke="#F9F8F6" strokeWidth="1" />
-                <text x={lbl.x} y={height - paddingY + 16} fontSize="8" fill="#A89F91" textAnchor="middle" className="font-light">{lbl.label}</text>
+                <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={height - paddingY} className="stroke-[#F9F8F6] dark:stroke-[#2A2A2A]" strokeWidth="1" />
+                <text x={lbl.x} y={height - paddingY + 18} fontSize={s("8", "12")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
               </g>
             ))}
 
-            <polyline points={polylinePoints} fill="none" stroke="#C4A495" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points={polylinePoints} fill="none" stroke="#C4A495" strokeWidth={s("2", "2.5")} strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
       </div>
@@ -1101,59 +1222,95 @@ function TrendChart({ records }) {
   );
 }
 
-const TrendFilters = ({ range, setRange }) => (
-  <div className="flex bg-white rounded-2xl p-1 border border-[#F0ECE7]">
-    {['1M', '3M', '6M', '12M', 'ALL'].map(r => (
-      <button key={r} onClick={() => setRange(r)} className={`flex-1 py-2 text-[9px] font-medium tracking-widest rounded-xl transition-all ${range === r ? 'bg-[#F9F8F6] text-[#8C8477] shadow-sm border border-[#E8E4DF]' : 'text-[#C2BCB6]'}`}>{r}</button>
-    ))}
-  </div>
-);
+const TrendFilters = ({ range, setRange, isLarge }) => {
+  const s = (n, l) => isLarge ? l : n;
+  return (
+    <div className={`flex bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-1', 'p-1.5')}`}>
+      {['1M', '3M', '6M', '12M', 'ALL'].map(r => (
+        <button key={r} onClick={() => setRange(r)} className={`flex-1 tracking-widest rounded-xl transition-all ${s('py-2 text-[9px] font-medium', 'py-3 text-xs font-bold')} ${range === r ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#8C8477] dark:text-[#A1988B] shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A]' : 'text-[#C2BCB6] dark:text-[#666666]'}`}>{r}</button>
+      ))}
+    </div>
+  );
+}
 
 // --- 設定頁面 ---
-function SettingsView({ profile, updateProfile, user, auth }) {
+function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
+  const s = (n, l) => isLarge ? l : n;
+  const themeMode = profile.themeMode || 'auto';
+
   return (
-    <div className="p-6 space-y-5 animate-in fade-in duration-500 pb-28">
-      <div className="bg-white rounded-3xl p-6 border border-[#F0ECE7] space-y-5">
-        <h2 className="text-xs font-medium text-[#5C5C5C] tracking-widest flex items-center gap-2 mb-4"><Settings className="w-4 h-4 text-[#C2BCB6] stroke-[1.5]" /> 生理設定</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-[9px] tracking-widest text-[#8C8477]">GENDER</label>
-            <div className="flex gap-2">
-              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'male' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>男</button>
-              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 py-2.5 rounded-xl border text-[11px] transition-all ${profile.gender === 'female' ? 'bg-[#EFECE7] border-[#D6D0C4] text-[#5C5C5C]' : 'border-[#F0ECE7] text-[#C2BCB6]'}`}>女</button>
+    <div className={`p-6 animate-in fade-in duration-500 ${s('space-y-5 pb-28', 'space-y-6 pb-32')}`}>
+      
+      {/* 1. 個人資料設定 */}
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-7 space-y-6')}`}>
+        <h2 className={`${s('text-xs font-medium mb-4', 'text-base font-bold mb-5')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Settings className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 個人資料設定</h2>
+        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-5')}`}>
+          <div className={s('space-y-2', 'space-y-3')}>
+            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>GENDER</label>
+            <div className={`flex ${s('gap-2', 'gap-2.5')}`}>
+              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
+              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-[9px] tracking-widest text-[#8C8477]">AGE</label>
-            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
+          <div className={s('space-y-2', 'space-y-3')}>
+            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>AGE</label>
+            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-[9px] tracking-widest text-[#8C8477]">HEIGHT (cm)</label>
-            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center" />
+        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-5')}`}>
+          <div className={s('space-y-2', 'space-y-3')}>
+            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>HEIGHT (cm)</label>
+            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
           </div>
-          <div className="space-y-2">
-            <label className="text-[9px] tracking-widest text-[#8C8477]">自訂 TDEE</label>
-            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className="w-full p-2.5 bg-[#F9F8F6] border border-[#E8E4DF] rounded-xl outline-none text-[#5C5C5C] text-xs text-center placeholder:text-[#C2BCB6]" />
+          <div className={s('space-y-2', 'space-y-3')}>
+            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>自訂 TDEE</label>
+            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl p-6 border border-[#F0ECE7] space-y-4">
-        <h2 className="text-xs font-medium text-[#5C5C5C] tracking-widest flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#C2BCB6] stroke-[1.5]" /> 雲端備份</h2>
+      {/* 2. 外觀主題設定 */}
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-7 space-y-5')}`}>
+        <h2 className={`${s('text-xs font-medium mb-4', 'text-base font-bold mb-5')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
+        <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2.5')}`}>
+          <button onClick={() => updateProfile({ themeMode: 'light' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'light' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>亮色</button>
+          <button onClick={() => updateProfile({ themeMode: 'dark' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'dark' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>夜間</button>
+          <button onClick={() => updateProfile({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
+        </div>
+        <p className={`${s('text-[10px] mt-1', 'text-sm mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>自動模式將於日落 (18:00) 至日出 (06:00) 期間切換為夜間模式</p>
+      </div>
+
+      {/* 3. 視覺友善切換開關 */}
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex justify-between items-center ${s('p-6', 'p-7')}`}>
+        <div className="flex items-center gap-3">
+          <div className={`${s('w-10 h-10 rounded-xl', 'w-12 h-12 rounded-2xl')} bg-[#F5F2EB] dark:bg-[#2C2A25] flex items-center justify-center`}>
+            <span className={`${s('text-base font-medium', 'text-xl font-bold')} text-[#A89F91] dark:text-[#888888]`}>Aa</span>
+          </div>
+          <div>
+            <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-xs', 'text-base font-bold')}`}>視覺友善模式</h3>
+            <p className={`${s('text-[10px] mt-1', 'text-sm mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>放大文字與圖示尺寸</p>
+          </div>
+        </div>
+        <button onClick={() => updateProfile({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 ${s('w-11 h-6', 'w-14 h-8')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
+          <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-6 h-6')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-6') : 'translate-x-0'}`} />
+        </button>
+      </div>
+
+      {/* 4. 雲端備份 */}
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-7 space-y-5')}`}>
+        <h2 className={`${s('text-xs font-medium mb-2', 'text-base font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
         {user && !user.isAnonymous ? (
-          <div className="space-y-3 pt-1">
-            <div className="bg-[#F9F8F6] p-3 rounded-xl border border-[#E8E4DF] flex items-center gap-3">
-              <CheckCircle2 className="w-4 h-4 text-[#8C8477] stroke-[1.5]" />
-              <span className="text-[11px] font-medium text-[#5C5C5C] truncate">{user.email}</span>
+          <div className={`${s('space-y-3 pt-1', 'space-y-4 pt-1')}`}>
+            <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-xl border border-[#E8E4DF] dark:border-[#3A3A3A] flex items-center gap-3 ${s('p-3', 'p-4')}`}>
+              <CheckCircle2 className={`${s('w-4 h-4', 'w-6 h-6')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
+              <span className={`${s('text-[11px]', 'text-base')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate`}>{user.email}</span>
             </div>
-            <button onClick={() => { signOut(auth); window.location.reload(); }} className="w-full py-3 bg-white text-[#C78D87] rounded-xl text-[11px] font-medium tracking-widest border border-[#F0ECE7] active:scale-95">登出帳號</button>
+            <button onClick={() => { signOut(auth); window.location.reload(); }} className={`w-full bg-white dark:bg-[#1E1E1E] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-medium tracking-widest border border-[#F0ECE7] dark:border-[#333333] active:scale-95 ${s('py-3 text-[11px]', 'py-4 text-base font-bold')}`}>登出帳號</button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-[10px] text-[#A89F91] leading-relaxed font-light">目前為訪客模式。綁定 Google 帳號可確保資料永久保存並跨裝置同步。</p>
-            <button onClick={() => { signInWithPopup(auth, new GoogleAuthProvider()).catch(()=>{}); }} className="w-full py-3 bg-[#8C8477] text-white rounded-xl text-[11px] font-medium tracking-widest active:scale-95 shadow-sm">
+          <div className={s('space-y-3', 'space-y-5')}>
+            <p className={`${s('text-[10px] font-light', 'text-sm font-medium')} text-[#A89F91] dark:text-[#888888] leading-relaxed`}>目前為訪客模式。綁定 Google 帳號可確保資料永久保存並跨裝置同步。</p>
+            <button onClick={() => { signInWithPopup(auth, new GoogleAuthProvider()).catch(()=>{}); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95 shadow-sm ${s('py-3 text-[11px]', 'py-4 text-base font-bold')}`}>
               綁定 GOOGLE 帳號
             </button>
           </div>
