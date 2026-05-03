@@ -340,7 +340,7 @@ export default function App() {
   useEffect(() => {
     let timer;
     if (showLoading) {
-      timer = setTimeout(() => setShowSpinner(true), 250);
+      timer = setTimeout(() => setShowSpinner(true), 1000);
     } else {
       setShowSpinner(false);
     }
