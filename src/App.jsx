@@ -742,7 +742,6 @@ export default function App() {
               </div>
             )}
           </div>
-          <WeightScaleIcon className={`${s('w-10 h-10', 'w-14 h-14')} text-[#D6D0C4] dark:text-[#4A4A4A] opacity-50 stroke-1 shrink-0`} />
         </div>
         <div className={`mt-6 ${s('pt-4', 'pt-5')} border-t border-[#D6D0C4]/40 dark:border-[#4A4A4A]/40 relative z-10`}>
           <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-[12px] font-bold mb-2')} tracking-widest`}>INTAKE / TDEE</p>
@@ -1141,11 +1140,9 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         let diffEl = null;
                         const iconSize = s("5", "7");
                         
-                        // 動態計算主體重字體大小，數字越長字體越小
-                        const mainLen = String(latestW).length;
-                        let mainFontSize = s('11px', '14px');
-                        if (mainLen >= 6) mainFontSize = s('8px', '10px');
-                        else if (mainLen === 5) mainFontSize = s('9px', '11.5px');
+                        // 動態計算主體重字體大小，嚴格分為兩種大小確保放得下
+                        const strVal = String(latestW);
+                        const mainFontSize = strVal.length >= 5 ? s('8.5px', '10.5px') : s('11px', '14px');
 
                         if (diff !== null) {
                           const nDiff = Number(diff);
@@ -1153,29 +1150,23 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                           
                           // 動態計算差異數字字體大小
                           const diffLen = diffStr.length; 
-                          let diffFontSize = s('8px', '10px');
-                          if (diffLen >= 5) diffFontSize = s('6.5px', '8px');
-                          else if (diffLen === 4) diffFontSize = s('7px', '9px');
+                          const diffFontSize = diffLen >= 5 ? s('7.5px', '8.5px') : s('8.5px', '10px');
 
-                          if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
-                          else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
-                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] w-full text-center whitespace-nowrap`}>0.00</span>;
+                          if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
+                          else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
+                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] w-full text-center whitespace-nowrap tracking-tighter`}>0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center justify-center w-full px-0.5 min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none w-full text-center whitespace-nowrap`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center justify-center w-full px-0.5 min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none w-full text-center whitespace-nowrap tracking-tighter`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         const calsLen = String(cals).length;
-                        let calsFontSize = s('10px', '12px');
-                        if (calsLen >= 5) calsFontSize = s('7.5px', '9px');
-                        else if (calsLen === 4) calsFontSize = s('8.5px', '10.5px');
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] w-full text-center whitespace-nowrap`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] w-full text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
                         const calsLen = String(cals).length;
-                        let calsFontSize = s('10px', '12px');
-                        if (calsLen >= 5) calsFontSize = s('7.5px', '9px');
-                        else if (calsLen === 4) calsFontSize = s('8.5px', '10.5px');
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] w-full text-center whitespace-nowrap`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] w-full text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
                       }
                     }
 
@@ -1238,14 +1229,14 @@ function TrendChart({ records, isLarge }) {
   if (maxW === minW) { minW -= 1; maxW += 1; }
   if ((maxW - minW) % 2 !== 0) { maxW += 1; }
 
-  const width = 320;
-  const height = 180;
+  const viewBoxWidth = 320;
+  const viewBoxHeight = 180;
   const paddingX = s(20, 20); 
   const paddingY = 25;
 
   const points = weightData.map((d, i) => ({
-    x: paddingX + (i / (weightData.length - 1)) * (width - paddingX * 2),
-    y: height - paddingY - ((d.weight - minW) / (maxW - minW)) * (height - paddingY * 2),
+    x: paddingX + (i / (weightData.length - 1)) * (viewBoxWidth - paddingX * 2),
+    y: viewBoxHeight - paddingY - ((d.weight - minW) / (maxW - minW)) * (viewBoxHeight - paddingY * 2),
     dateStr: d.date
   }));
 
@@ -1269,14 +1260,14 @@ function TrendChart({ records, isLarge }) {
           <h2 className={`${s('text-[10px] font-medium', 'text-[12px] font-bold')} tracking-[0.2em] text-[#8C8477] dark:text-[#A1988B] uppercase`}>Weight Trend</h2>
           <span className={`${s('text-[9px] font-light', 'text-[11px] font-medium')} text-[#A89F91] dark:text-[#888888]`}>{weightData[0].date.replace(/-/g, '.')} ~ {weightData[weightData.length-1].date.replace(/-/g, '.')}</span>
         </div>
-        <div className="overflow-x-auto overflow-y-hidden custom-scrollbar pb-2">
-          <svg width={width} height={height} className="mx-auto overflow-visible">
+        <div className="w-full pb-2">
+          <svg viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`} className="w-full h-auto overflow-visible">
             {[0, 0.5, 1].map(r => {
-              const y = paddingY + r * (height - paddingY * 2);
+              const y = paddingY + r * (viewBoxHeight - paddingY * 2);
               const val = Math.round(maxW - r * (maxW - minW));
               return (
                 <g key={`y-${r}`}>
-                  <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} className="stroke-[#F0ECE7] dark:stroke-[#333333]" strokeWidth="1" strokeDasharray="3 3" />
+                  <line x1={paddingX} y1={y} x2={viewBoxWidth - paddingX} y2={y} className="stroke-[#F0ECE7] dark:stroke-[#333333]" strokeWidth="1" strokeDasharray="3 3" />
                   <text x={paddingX - 8} y={y + 4} fontSize={s("8", "10")} className={`fill-[#C2BCB6] dark:fill-[#666666] ${s('font-light', 'font-medium')}`} textAnchor="end">{val}</text>
                 </g>
               );
@@ -1284,8 +1275,8 @@ function TrendChart({ records, isLarge }) {
             
             {xAxisLabels.map((lbl, i) => (
               <g key={`x-${i}`}>
-                <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={height - paddingY} className="stroke-[#F9F8F6] dark:stroke-[#2A2A2A]" strokeWidth="1" />
-                <text x={lbl.x} y={height - paddingY + 18} fontSize={s("8", "10")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
+                <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={viewBoxHeight - paddingY} className="stroke-[#F9F8F6] dark:stroke-[#2A2A2A]" strokeWidth="1" />
+                <text x={lbl.x} y={viewBoxHeight - paddingY + 18} fontSize={s("8", "10")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
               </g>
             ))}
 
