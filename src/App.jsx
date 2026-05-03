@@ -1140,19 +1140,42 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
                         const iconSize = s("5", "7");
+                        
+                        // 動態計算主體重字體大小，數字越長字體越小
+                        const mainLen = String(latestW).length;
+                        let mainFontSize = s('11px', '14px');
+                        if (mainLen >= 6) mainFontSize = s('8px', '10px');
+                        else if (mainLen === 5) mainFontSize = s('9px', '11.5px');
+
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span className="truncate">{Math.abs(nDiff).toFixed(2)}</span></span>;
-                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span className="truncate">{Math.abs(nDiff).toFixed(2)}</span></span>;
-                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[10px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] w-full text-center truncate`}>- 0.00</span>;
+                          const diffStr = Math.abs(nDiff).toFixed(2); // 始終保留小數點後兩位
+                          
+                          // 動態計算差異數字字體大小
+                          const diffLen = diffStr.length; 
+                          let diffFontSize = s('8px', '10px');
+                          if (diffLen >= 5) diffFontSize = s('6.5px', '8px');
+                          else if (diffLen === 4) diffFontSize = s('7px', '9px');
+
+                          if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
+                          else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] w-full whitespace-nowrap`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
+                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] w-full text-center whitespace-nowrap`}>0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center w-full px-0.5 min-w-0"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-[14px]')} leading-none w-full text-center truncate`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center justify-center w-full px-0.5 min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none w-full text-center whitespace-nowrap`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#9AA899] w-full text-center truncate`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        const calsLen = String(cals).length;
+                        let calsFontSize = s('10px', '12px');
+                        if (calsLen >= 5) calsFontSize = s('7.5px', '9px');
+                        else if (calsLen === 4) calsFontSize = s('8.5px', '10.5px');
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] w-full text-center whitespace-nowrap`}>{cals > 0 ? cals : '✓'}</span></div>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#C4A495] w-full text-center truncate`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        const calsLen = String(cals).length;
+                        let calsFontSize = s('10px', '12px');
+                        if (calsLen >= 5) calsFontSize = s('7.5px', '9px');
+                        else if (calsLen === 4) calsFontSize = s('8.5px', '10.5px');
+                        cellContent = <div className="w-full px-1 flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] w-full text-center whitespace-nowrap`}>{cals > 0 ? cals : '✓'}</span></div>;
                       }
                     }
 
