@@ -4,7 +4,7 @@ import {
   Flame, Utensils, Droplets, X, Plus, ChevronLeft, ChevronRight, CheckCircle2,
   Cloud, CloudOff, ShieldCheck, Activity, Dumbbell, Coffee, Apple, Pizza, Carrot, 
   Fish, Beef, Bike, Zap, HeartPulse, Delete, Trash2,
-  Music, Sun, Moon, Star, Heart, Target
+  Music, Sun, Moon, Star, Heart, Target, RefreshCw
 } from 'lucide-react';
 
 // --- Firebase 初始化 ---
@@ -31,7 +31,10 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId
 // --- 自訂圖示庫 ---
 const ShuttlecockIcon = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M12 22v-4" /><path d="M8 18h8" /><path d="M5 4l4 10" /><path d="M19 4l-4 10" /><path d="M12 2l1 12H11Z" />
+    <path d="M10 18a2 2 0 1 0 4 0v-2h-4v2z" />
+    <path d="M10 16L5 3l7 4 7-4-5 13" />
+    <path d="M12 16V7" />
+    <path d="M7.5 10h9" />
   </svg>
 );
 
@@ -188,14 +191,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
 
-  // ============================================================
-  // BUG FIX: 將 isInitialLoad 拆成兩個獨立 flag
-  // - isInitialLoad: 控制全局 loading 畫面（給 Firebase auth 用）
-  // - recordsReady: 只在 onSnapshot 確實拿到第一筆資料後才設為 true
-  //   這樣即使 iOS bfcache 恢復時 records 是空的，也不會提前渲染空資料
-  // ============================================================
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [recordsReady, setRecordsReady] = useState(false);
+  
+  // 新增：延遲顯示載入動畫的狀態，避免瞬間讀取時的畫面閃爍
+  const [showSpinner, setShowSpinner] = useState(false);
   
   const todayStrRef = useRef(getDateString(new Date()));
   const [todayStr, setTodayStr] = useState(todayStrRef.current);
@@ -221,13 +221,6 @@ export default function App() {
   const [records, setRecords] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // ============================================================
-  // BUG FIX: iOS Safari bfcache 恢復偵測
-  // 當 pageshow 的 persisted 為 true，代表是從 bfcache 恢復，
-  // 此時 React state 是舊快照，Firebase listener 也已斷開。
-  // 必須重置 recordsReady，讓畫面回到 loading 狀態，
-  // 等待重新建立的 onSnapshot 推送最新資料後再顯示。
-  // ============================================================
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
 
@@ -241,18 +234,12 @@ export default function App() {
       }
     };
 
-    // pageshow 是最可靠的 iOS bfcache 恢復事件
     const handlePageShow = (e) => {
       handleWake();
       if (e.persisted) {
-        // 從 bfcache 恢復：重置 recordsReady，讓畫面顯示 loading
-        // Firebase listener 會在 user effect 重新訂閱後推送最新資料
         setRecordsReady(false);
-        // 強制重新觸發 Firebase 訂閱
-        // 透過清除再重建 user 狀態觸發
         const currentUser = auth.currentUser;
         if (currentUser) {
-          // 重新建立 Firestore listener
           if (unsubRecordsRef.current) unsubRecordsRef.current();
           if (unsubProfileRef.current) unsubProfileRef.current();
           
@@ -267,7 +254,7 @@ export default function App() {
             const newRec = {};
             snap.forEach(doc => newRec[doc.id] = doc.data());
             setRecords(newRec);
-            setRecordsReady(true); // 資料確實到位才開放渲染
+            setRecordsReady(true);
           });
         }
       }
@@ -303,18 +290,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // 清除舊的 listener
     if (unsubRecordsRef.current) { unsubRecordsRef.current(); unsubRecordsRef.current = null; }
     if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
 
     if (!user) {
       setRecords({});
-      setRecordsReady(true); // 無用戶也要放行，否則永遠 loading
+      setRecordsReady(true); 
       setIsInitialLoad(false);
       return;
     }
 
-    // 重置 recordsReady，等待新的 snapshot 到來
     setRecordsReady(false);
 
     const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'health_records');
@@ -328,7 +313,7 @@ export default function App() {
       const newRec = {};
       snap.forEach(doc => newRec[doc.id] = doc.data());
       setRecords(newRec);
-      setRecordsReady(true); // ← 關鍵：資料確實到位才開放渲染
+      setRecordsReady(true);
       setIsInitialLoad(false);
     });
 
@@ -348,8 +333,22 @@ export default function App() {
     return () => clearTimeout(timeoutId);
   }, [profile, user, recordsReady]);
 
+  // 控制是否正在阻擋渲染（尚未取得第一筆資料）
+  const showLoading = isInitialLoad || !recordsReady;
+
+  // 處理載入畫面的顯示延遲：如果讀取時間超過 250ms 才顯示載入 UI，避免畫面閃動
+  useEffect(() => {
+    let timer;
+    if (showLoading) {
+      timer = setTimeout(() => setShowSpinner(true), 250);
+    } else {
+      setShowSpinner(false);
+    }
+    return () => clearTimeout(timer);
+  }, [showLoading]);
+
   // ============================================================================
-  // 核心資料計算（直接從最新的 records state 讀取，無快取）
+  // 核心資料計算
   // ============================================================================
   const currentData = records[targetDate] || {};
   
@@ -730,12 +729,6 @@ export default function App() {
     }
   };
 
-  // ============================================================
-  // BUG FIX: loading 條件改為同時檢查 isInitialLoad 和 recordsReady
-  // 只有在 recordsReady 為 true 時才渲染實際內容
-  // ============================================================
-  const showLoading = isInitialLoad || !recordsReady;
-
   return (
     <div className="max-w-md mx-auto h-[100dvh] flex flex-col bg-[#F7F5F2] font-sans text-[#4A4A4A] overflow-hidden shadow-2xl relative">
       <header className="bg-[#F7F5F2]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] sticky top-0">
@@ -750,8 +743,8 @@ export default function App() {
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
         {showLoading ? (
-          <div className="flex flex-col items-center justify-center h-full text-[#C2BCB6] pb-20">
-            <Activity className="w-8 h-8 animate-spin mb-4 stroke-[1.5] text-[#8C8477]" />
+          <div className={`flex flex-col items-center justify-center h-full text-[#C2BCB6] pb-20 transition-opacity duration-300 ${showSpinner ? 'opacity-100' : 'opacity-0'}`}>
+            <RefreshCw className="w-8 h-8 animate-spin mb-4 stroke-[1.5] text-[#8C8477]" />
             <p className="text-[10px] tracking-widest font-medium">資料同步中</p>
           </div>
         ) : (
