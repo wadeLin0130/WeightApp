@@ -99,8 +99,8 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
   const startXRef = useRef(0);
   const currentXRef = useRef(0);
   
-  const maxOffset = isLarge ? -90 : -80;
-  const triggerOffset = isLarge ? -45 : -40;
+  const maxOffset = isLarge ? -85 : -80;
+  const triggerOffset = isLarge ? -40 : -40;
 
   const handleTouchStart = (e) => {
     startXRef.current = e.touches[0].clientX;
@@ -131,14 +131,14 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
 
   return (
     <div className="relative w-full mb-3 rounded-2xl overflow-hidden touch-pan-y bg-[#C78D87] dark:bg-[#B86C65]">
-      <div className={`absolute inset-y-0 right-0 ${s('w-20', 'w-[90px]')} flex items-center justify-center`}>
+      <div className={`absolute inset-y-0 right-0 ${s('w-20', 'w-[85px]')} flex items-center justify-center`}>
         <button onClick={(e) => { e.stopPropagation(); onDelete(record.id); }} className="w-full h-full flex flex-col items-center justify-center text-white active:bg-[#B57C76] dark:active:bg-[#A55F59] transition-colors">
           <Trash2 className={`${s('w-5 h-5 mb-1', 'w-6 h-6 mb-1.5')} stroke-[1.5]`} />
           <span className={s('text-[10px]', 'text-sm font-medium tracking-wide')}>刪除</span>
         </button>
       </div>
       <div 
-        className={`relative w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-4', 'p-5')} flex justify-between items-center transition-transform duration-200 z-10 h-full border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl`}
+        className={`relative w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-4', 'p-4')} flex justify-between items-center transition-transform duration-200 z-10 h-full border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl min-w-0`}
         style={{ transform: `translateX(${offsetX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -148,15 +148,16 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
           else { setOffsetX(0); currentXRef.current = 0; }
         }}
       >
-        <div className="flex items-center gap-4 pointer-events-none">
-          <span className={`${s('text-[10px] w-10', 'text-sm w-12')} text-[#A89F91] dark:text-[#888888] font-medium`}>{record.time}</span>
-          <div className={`${s('h-4 w-[1px]', 'h-5 w-[1.5px]')} bg-[#D6D0C4] dark:bg-[#4A4A4A]`}></div>
-          {(isDiet || isEx) && <span className={`${s('text-xs max-w-[120px]', 'text-base max-w-[130px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate`}>{record.content || record.type}</span>}
-          {!(isDiet || isEx) && <span className={`${s('text-xs', 'text-base')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>紀錄數值</span>}
+        <div className="flex items-center gap-3 min-w-0 flex-1 pointer-events-none">
+          <span className={`${s('text-[10px] w-10', 'text-[13px] w-12')} text-[#A89F91] dark:text-[#888888] font-medium shrink-0`}>{record.time}</span>
+          <div className={`${s('h-4', 'h-5')} w-[1.5px] bg-[#D6D0C4] dark:bg-[#4A4A4A] shrink-0`}></div>
+          <span className={`${s('text-xs', 'text-[15px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate min-w-0`}>
+            {(isDiet || isEx) ? (record.content || record.type) : '紀錄數值'}
+          </span>
         </div>
-        <div className="flex items-baseline gap-1 pointer-events-none">
-          <span className={`${s('text-sm', 'text-xl')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
-          {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-xs')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
+        <div className="flex items-baseline gap-1 pointer-events-none shrink-0 pl-2">
+          <span className={`${s('text-sm', 'text-lg')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
+          {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-[11px]')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
         </div>
       </div>
     </div>
@@ -179,35 +180,35 @@ function DashboardDatePicker({ initialDate, onSelect, isLarge }) {
 
   return (
     <div className={s('space-y-4', 'space-y-5')}>
-      <div className={`flex justify-between items-center bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-2', 'p-2.5')} rounded-2xl border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+      <div className={`flex justify-between items-center bg-[#F9F8F6] dark:bg-[#2A2A2A] ${s('p-2', 'p-2')} rounded-2xl border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
         <button onClick={() => setViewDate(new Date(year, month - 1, 1))} className="p-2 text-[#8C8477] dark:text-[#A1988B] hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-xl transition-colors active:scale-90"><ChevronLeft className={s('w-5 h-5', 'w-6 h-6')}/></button>
         <div className="flex gap-2">
-          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-2')} shadow-sm`}>
-            <select value={year} onChange={(e) => setViewDate(new Date(Number(e.target.value), month, 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2.5 pl-3 pr-8 text-lg')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
+          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-1.5')} shadow-sm`}>
+            <select value={year} onChange={(e) => setViewDate(new Date(Number(e.target.value), month, 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2 pl-3 pr-7 text-base')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
               {years.map(y => <option key={y} value={y}>{y} 年</option>)}
             </select>
-            <div className={`absolute ${s('right-2 text-[10px]', 'right-3 text-sm')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
+            <div className={`absolute ${s('right-2 text-[10px]', 'right-2 text-[11px]')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
           </div>
-          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-2')} shadow-sm`}>
-            <select value={month} onChange={(e) => setViewDate(new Date(year, Number(e.target.value), 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2.5 pl-3 pr-8 text-lg')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
+          <div className={`relative flex items-center bg-white dark:bg-[#1E1E1E] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl ${s('px-1', 'px-1.5')} shadow-sm`}>
+            <select value={month} onChange={(e) => setViewDate(new Date(year, Number(e.target.value), 1))} className={`appearance-none bg-transparent ${s('py-2 pl-3 pr-6 text-sm', 'py-2 pl-3 pr-7 text-base')} outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`}>
               {months.map(m => <option key={m} value={m}>{String(m + 1).padStart(2, '0')} 月</option>)}
             </select>
-            <div className={`absolute ${s('right-2 text-[10px]', 'right-3 text-sm')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
+            <div className={`absolute ${s('right-2 text-[10px]', 'right-2 text-[11px]')} pointer-events-none text-[#A89F91] dark:text-[#888888]`}>▼</div>
           </div>
         </div>
         <button onClick={() => setViewDate(new Date(year, month + 1, 1))} className="p-2 text-[#8C8477] dark:text-[#A1988B] hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-xl transition-colors active:scale-90"><ChevronRight className={s('w-5 h-5', 'w-6 h-6')}/></button>
       </div>
-      <div className={`grid grid-cols-7 ${s('gap-1.5 text-[10px] font-medium', 'gap-2 text-sm font-bold')} text-center mb-2 px-1 text-[#A89F91] dark:text-[#888888] tracking-widest`}>
+      <div className={`grid grid-cols-7 ${s('gap-1.5 text-[10px] font-medium', 'gap-1.5 text-[12px] font-bold')} text-center mb-2 px-1 text-[#A89F91] dark:text-[#888888] tracking-widest`}>
         {['S','M','T','W','T','F','S'].map((d, i) => <div key={i}>{d}</div>)}
       </div>
-      <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-2')} px-1 pb-4`}>
+      <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-1.5')} px-1 pb-4`}>
         {days.map((d, i) => {
           if (!d) return <div key={i} />;
           const dStr = getDateString(d);
           const isTarget = dStr === initialDate;
           const isToday = dStr === getDateString(new Date());
           return (
-            <button key={i} onClick={() => onSelect(dStr)} className={`aspect-square flex items-center justify-center transition-all active:scale-90 ${s('rounded-xl text-xs font-medium', 'rounded-2xl text-base font-bold')} ${isTarget ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] shadow-md' : isToday ? 'border-2 border-[#D6D0C4] dark:border-[#4A4A4A] text-[#8C8477] dark:text-[#A1988B] bg-[#F9F8F6] dark:bg-[#2A2A2A]' : 'text-[#5C5C5C] dark:text-[#D1D1D1] hover:bg-[#EFECE7] dark:hover:bg-[#333333] border border-transparent'}`}>
+            <button key={i} onClick={() => onSelect(dStr)} className={`aspect-square flex items-center justify-center transition-all active:scale-90 ${s('rounded-xl text-xs font-medium', 'rounded-2xl text-[15px] font-bold')} ${isTarget ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] shadow-md' : isToday ? 'border-2 border-[#D6D0C4] dark:border-[#4A4A4A] text-[#8C8477] dark:text-[#A1988B] bg-[#F9F8F6] dark:bg-[#2A2A2A]' : 'text-[#5C5C5C] dark:text-[#D1D1D1] hover:bg-[#EFECE7] dark:hover:bg-[#333333] border border-transparent'}`}>
               {d.getDate()}
             </button>
           )
@@ -253,7 +254,7 @@ export default function App() {
       }
       setIsDark(isDarkTheme);
 
-      // 強制寫入 html 標籤與 body 底色，徹底解決周圍白框問題
+      // 強制寫入 html 標籤與 body 底色，徹底解決周圍白框與切換失效問題
       if (isDarkTheme) {
         document.documentElement.classList.add('dark');
         document.body.style.backgroundColor = '#121212';
@@ -264,7 +265,6 @@ export default function App() {
     };
     
     checkTheme();
-    // 每分鐘重新檢查一次時間（支援跨日與自動切換）
     const timer = setInterval(checkTheme, 60000);
     return () => clearInterval(timer);
   }, [themeMode]);
@@ -629,7 +629,6 @@ export default function App() {
       if (finalVal || finalVal === '') onSave(finalVal);
     };
 
-    // 將所有按鈕佈局設定好，支援等於符號跨列與 0 跨欄
     const btns = [
       { label: 'C', col: 1 }, { label: 'DEL', col: 1 }, { label: '÷', col: 1 }, { label: '×', col: 1 },
       { label: '7', col: 1 }, { label: '8', col: 1 }, { label: '9', col: 1 }, { label: '-', col: 1 },
@@ -644,24 +643,24 @@ export default function App() {
     const getFontSize = (text) => {
       const len = text.length;
       if (isLarge) {
-        if (len <= 7) return '3rem'; // 48px
-        if (len <= 10) return '2.25rem'; // 36px
-        if (len <= 14) return '1.875rem'; // 30px
-        return '1.5rem'; // 24px
+        if (len <= 7) return 'clamp(2rem, 10vw, 3rem)'; // 48px
+        if (len <= 10) return 'clamp(1.5rem, 8vw, 2.25rem)'; // 36px
+        if (len <= 14) return 'clamp(1.2rem, 6vw, 1.875rem)'; // 30px
+        return 'clamp(1rem, 5vw, 1.5rem)'; // 24px
       } else {
-        if (len <= 7) return '2.25rem'; // 36px
-        if (len <= 10) return '1.875rem'; // 30px
-        if (len <= 14) return '1.5rem'; // 24px
-        return '1.25rem'; // 20px
+        if (len <= 7) return 'clamp(1.75rem, 8vw, 2.25rem)'; // 36px
+        if (len <= 10) return 'clamp(1.5rem, 6vw, 1.875rem)'; // 30px
+        if (len <= 14) return 'clamp(1.25rem, 5vw, 1.5rem)'; // 24px
+        return '1.125rem'; // 18px
       }
     };
 
     return (
       <div className="flex flex-col gap-3">
-        <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-5 min-h-[7.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all`}>
-          <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-sm')} tracking-widest font-medium mb-1`}>{title}</p>
+        <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all`}>
+          <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-[12px]')} tracking-widest font-medium mb-1 shrink-0`}>{title}</p>
           <p 
-            className="font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1" 
+            className="font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1 min-w-0" 
             style={{ fontSize: getFontSize(displayStr) }}
           >
             {displayStr}
@@ -681,7 +680,7 @@ export default function App() {
               {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : btn.label}
             </button>
           ))}
-          <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-lg')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
+          <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-[16px]')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
             儲存紀錄
           </button>
         </div>
@@ -692,56 +691,56 @@ export default function App() {
   const renderHome = () => (
     <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
       <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
-        <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-lg font-bold gap-3')}`}>
-          <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+        <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-[16px] font-bold gap-3')}`}>
+          <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A] shrink-0`}>
             <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
           </div>
           {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
         </button>
         {targetDate !== todayStr && (
-          <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-sm px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium`}>回今日</button>
+          <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-[13px] px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium shrink-0`}>回今日</button>
         )}
       </div>
 
-      <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-7')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
+      <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
         <div className="relative z-10 flex justify-between items-start">
-          <div>
-            <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-sm font-bold mb-2')} tracking-widest font-medium`}>WEIGHT</p>
-            <div className={`flex items-baseline ${s('gap-1', 'gap-2')}`}>
-              <span className={`${s('text-5xl', 'text-6xl')} font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight`}>{latestWeight || '--'}</span>
-              <span className={`${s('text-sm', 'text-xl font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
+          <div className="min-w-0">
+            <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
+            <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
+              <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{latestWeight || '--'}</span>
+              <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
             </div>
             {weightChange && (
-              <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-4 py-1.5 text-sm font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+              <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-3 py-1.5 text-[12px] font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
                 較前次 {Number(weightChange) > 0 ? '+' : ''}{weightChange} kg
               </div>
             )}
           </div>
-          <WeightScaleIcon className={`${s('w-10 h-10', 'w-16 h-16')} text-[#D6D0C4] dark:text-[#4A4A4A] opacity-50 stroke-1`} />
+          <WeightScaleIcon className={`${s('w-10 h-10', 'w-14 h-14')} text-[#D6D0C4] dark:text-[#4A4A4A] opacity-50 stroke-1 shrink-0`} />
         </div>
         <div className={`mt-6 ${s('pt-4', 'pt-5')} border-t border-[#D6D0C4]/40 dark:border-[#4A4A4A]/40 relative z-10`}>
-          <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-sm font-bold mb-2')} tracking-widest`}>INTAKE / TDEE</p>
+          <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-[12px] font-bold mb-2')} tracking-widest`}>INTAKE / TDEE</p>
           <div className={`flex items-end ${s('gap-1', 'gap-1.5')}`}>
-            <span className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-lg', 'text-3xl font-bold')} leading-none`}>{totalIntake}</span>
-            <span className={`text-[#A89F91] dark:text-[#888888] font-light ${s('text-sm pb-[1px]', 'text-lg font-medium pb-[2px]')} leading-none`}>/ {tdee} kcal</span>
+            <span className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-[clamp(1.125rem,6vw,1.875rem)] ${s('', 'font-bold text-[clamp(1.5rem,8vw,2.25rem)]')}`}>{totalIntake}</span>
+            <span className={`text-[#A89F91] dark:text-[#888888] font-light ${s('text-sm pb-[1px]', 'text-[16px] font-medium pb-[2px]')} leading-none`}>/ {tdee} kcal</span>
           </div>
         </div>
       </div>
 
-      <div className={`grid grid-cols-2 ${s('gap-3', 'gap-4')}`}>
+      <div className={`grid grid-cols-2 ${s('gap-3', 'gap-3')}`}>
         {[
           { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
           { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
           { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
           { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
         ].map(card => (
-          <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-5 gap-3', 'p-6 gap-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)]`}>
-            <div className={`${s('w-9 h-9', 'w-12 h-12')} rounded-2xl ${card.bg} flex items-center justify-center`}>
+          <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-4 gap-3', 'p-4 sm:p-5 gap-3')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)] min-w-0`}>
+            <div className={`${s('w-9 h-9', 'w-11 h-11')} rounded-2xl ${card.bg} flex items-center justify-center shrink-0`}>
               <card.icon className={`${s('w-4 h-4', 'w-6 h-6')} ${card.color} stroke-[1.5]`} />
             </div>
-            <div>
-              <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-[11px]', 'text-base font-bold')}`}>{card.title}</h3>
-              <p className={`${s('text-[10px] mt-1 font-light', 'text-sm mt-1.5 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>{card.val}</p>
+            <div className="min-w-0 text-left w-full">
+              <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-[11px]', 'text-[14px] font-bold')} truncate`}>{card.title}</h3>
+              <p className={`${s('text-[10px] mt-1 font-light', 'text-[12px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide truncate`}>{card.val}</p>
             </div>
           </button>
         ))}
@@ -760,15 +759,17 @@ export default function App() {
 
     const ModalLayout = ({ title, onBack, children }) => (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-7')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] overflow-y-auto relative`}>
-          <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-6 pb-3')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10`}>
-            <div className={`flex items-center ${s('gap-2', 'gap-3')}`}>
-              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90"><ChevronLeft className={`${s('w-5 h-5', 'w-7 h-7')} stroke-[1.5]`}/></button>}
-              <h2 className={`${s('text-[13px] font-medium', 'text-lg font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest`}>{title}</h2>
+        <div className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-5 sm:p-6')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] flex flex-col relative`}>
+          <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-5 pb-2')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10 shrink-0`}>
+            <div className={`flex items-center ${s('gap-2', 'gap-3')} min-w-0`}>
+              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><ChevronLeft className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/></button>}
+              <h2 className={`${s('text-[13px] font-medium', 'text-[16px] font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest truncate`}>{title}</h2>
             </div>
-            <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90"><X className={`${s('w-4 h-4', 'w-6 h-6')}`} /></button>
+            <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><X className={`${s('w-4 h-4', 'w-5 h-5')}`} /></button>
           </div>
-          {children}
+          <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2">
+            {children}
+          </div>
         </div>
       </div>
     );
@@ -816,16 +817,16 @@ export default function App() {
       const colorClass = isDiet ? 'text-[#9AA899] dark:text-[#9AA899] bg-[#EEF2ED] dark:bg-[#222B21] border-[#D6E0D5] dark:border-[#2C3B2A]' : 'text-[#C4A495] dark:text-[#C4A495] bg-[#F7EFEA] dark:bg-[#2D2520] border-[#E8D9D1] dark:border-[#3D302A]';
       return (
         <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
-          <div className={`grid grid-cols-3 ${s('gap-3', 'gap-4')}`}>
+          <div className={`grid grid-cols-3 ${s('gap-3', 'gap-2 sm:gap-3')}`}>
             {cards.map(card => (
-              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-5 gap-3')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm ${colorClass.split(' ')[2]}`}>
-                <DynamicIcon name={card.icon} className={`${s('w-6 h-6', 'w-8 h-8')} stroke-[1.5] ${colorClass.split(' ')[0]}`} />
-                <span className={`${s('text-[10px]', 'text-sm font-bold')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{card.name}</span>
+              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-3 gap-2')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm min-w-0 ${colorClass.split(' ')[2]}`}>
+                <DynamicIcon name={card.icon} className={`${s('w-6 h-6', 'w-7 h-7')} stroke-[1.5] shrink-0 ${colorClass.split(' ')[0]}`} />
+                <span className={`${s('text-[10px]', 'text-[12px] font-bold')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate w-full text-center`}>{card.name}</span>
               </button>
             ))}
-            <button onClick={() => setModalState({ view: 'new_card', category, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2 border', 'p-5 gap-3 border-2')} rounded-2xl border-dashed border-[#D6D0C4] dark:border-[#4A4A4A] bg-white dark:bg-[#1E1E1E] text-[#A89F91] dark:text-[#888888] active:bg-[#F9F8F6] dark:active:bg-[#2A2A2A]`}>
-              <Plus className={`${s('w-5 h-5', 'w-8 h-8')} stroke-[1.5]`} />
-              <span className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest`}>新增</span>
+            <button onClick={() => setModalState({ view: 'new_card', category, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2 border', 'p-3 gap-2 border-2')} rounded-2xl border-dashed border-[#D6D0C4] dark:border-[#4A4A4A] bg-white dark:bg-[#1E1E1E] text-[#A89F91] dark:text-[#888888] active:bg-[#F9F8F6] dark:active:bg-[#2A2A2A] min-w-0`}>
+              <Plus className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5] shrink-0`} />
+              <span className={`${s('text-[9px]', 'text-[12px] font-bold')} tracking-widest truncate w-full text-center`}>新增</span>
             </button>
           </div>
         </ModalLayout>
@@ -846,9 +847,9 @@ export default function App() {
       return (
         <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
           {(isDiet || isEx) && (
-            <div className={s('mb-4', 'mb-5')}>
-              <label className={`${s('text-[10px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-2 block`}>項目名稱</label>
-              <input id="editNameInput" defaultValue={item?.content || item?.type || ''} placeholder="輸入名稱" className={`w-full ${s('p-3.5 text-sm', 'p-4 text-lg font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
+            <div className={s('mb-4', 'mb-4')}>
+              <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-2 block`}>項目名稱</label>
+              <input id="editNameInput" defaultValue={item?.content || item?.type || ''} placeholder="輸入名稱" className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
             </div>
           )}
           <Calculator title={title} placeholder="0" initialValue={initial} isLarge={isLarge} onSave={(val) => {
@@ -856,7 +857,7 @@ export default function App() {
             const dataToSave = (isDiet) ? { content: nameVal, calories: val } : (isEx) ? { type: nameVal, calories: val } : { value: val };
             handleSaveData(category, dataToSave);
           }} />
-          {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-4 font-light', 'text-xs mt-5 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
+          {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-4 font-light', 'text-[11px] mt-4 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
         </ModalLayout>
       );
     }
@@ -874,25 +875,25 @@ export default function App() {
             if(isDiet) updateProfile(p => ({...p, dietCards: [...p.dietCards, newCard]}));
             else updateProfile(p => ({...p, exerciseCards: [...p.exerciseCards, newCard]}));
             setModalState({view: 'select', category, dateStr: operateDate});
-          }} className={s('space-y-5', 'space-y-6')}>
+          }} className={s('space-y-5', 'space-y-5')}>
             <div>
-              <label className={`${s('text-[10px] mb-2', 'text-sm font-bold mb-2.5')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>名稱</label>
-              <input name="cardName" type="text" placeholder="例如：拿鐵" required className={`w-full ${s('p-3.5 text-sm', 'p-4 text-lg font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
+              <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>名稱</label>
+              <input name="cardName" type="text" placeholder="例如：拿鐵" required className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
             </div>
             <div>
-              <label className={`${s('text-[10px] mb-2', 'text-sm font-bold mb-2.5')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>圖標</label>
-              <div className={`grid grid-cols-4 ${s('gap-2', 'gap-3')}`}>
+              <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>圖標</label>
+              <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2')}`}>
                 {availableIcons.map((ic, i) => (
                   <label key={ic} className="cursor-pointer">
                     <input type="radio" name="iconSelect" value={ic} defaultChecked={i===0} className="peer hidden" />
-                    <div className={`flex justify-center ${s('py-3.5', 'py-4')} border border-[#F0ECE7] dark:border-[#333333] rounded-xl text-[#C2BCB6] dark:text-[#666666] peer-checked:border-[#8C8477] peer-checked:dark:border-[#A1988B] peer-checked:text-[#8C8477] peer-checked:dark:text-[#A1988B] peer-checked:bg-[#F5F2EB] peer-checked:dark:bg-[#2C2A25] transition-all`}>
-                      <DynamicIcon name={ic} className={`${s('w-5 h-5', 'w-7 h-7')} stroke-[1.5]`} />
+                    <div className={`flex justify-center ${s('py-3.5', 'py-3.5')} border border-[#F0ECE7] dark:border-[#333333] rounded-xl text-[#C2BCB6] dark:text-[#666666] peer-checked:border-[#8C8477] peer-checked:dark:border-[#A1988B] peer-checked:text-[#8C8477] peer-checked:dark:text-[#A1988B] peer-checked:bg-[#F5F2EB] peer-checked:dark:bg-[#2C2A25] transition-all`}>
+                      <DynamicIcon name={ic} className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`} />
                     </div>
                   </label>
                 ))}
               </div>
             </div>
-            <button type="submit" className={`w-full ${s('py-4 text-xs mt-4', 'py-4 text-base font-bold mt-6')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95`}>儲存卡片</button>
+            <button type="submit" className={`w-full ${s('py-4 text-xs mt-4', 'py-3.5 text-[15px] font-bold mt-5')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95`}>儲存卡片</button>
           </form>
         </ModalLayout>
       );
@@ -902,12 +903,12 @@ export default function App() {
   return (
     <div className={`max-w-md mx-auto min-h-[100dvh] flex flex-col bg-[#F7F5F2] dark:bg-[#121212] font-sans text-[#4A4A4A] dark:text-[#E8E8E8] shadow-2xl relative ${isDark ? 'dark' : ''}`}>
       <header className="bg-[#F7F5F2]/90 dark:bg-[#121212]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] dark:border-[#2A2A2A] sticky top-0">
-        <div className={`${s('text-[11px] font-medium', 'text-base font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-[0.2em] uppercase flex items-center gap-2`}>
+        <div className={`${s('text-[11px] font-medium', 'text-[14px] font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-[0.2em] uppercase flex items-center gap-2`}>
           {activeTab === 'home' && 'Dashboard'}
           {activeTab === 'calendar' && 'Calendar'}
           {activeTab === 'trend' && 'Analytics'}
           {activeTab === 'settings' && 'Profile'}
-          {isSyncing ? <RefreshCw className={`${s('w-3 h-3', 'w-5 h-5')} text-[#C4A495] animate-spin`} /> : user && !user.isAnonymous ? <Cloud className={`${s('w-3 h-3', 'w-5 h-5')} text-[#9AA899]`} /> : <CloudOff className={`${s('w-3 h-3', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666]`} />}
+          {isSyncing ? <RefreshCw className={`${s('w-3 h-3', 'w-4 h-4')} text-[#C4A495] animate-spin`} /> : user && !user.isAnonymous ? <Cloud className={`${s('w-3 h-3', 'w-4 h-4')} text-[#9AA899]`} /> : <CloudOff className={`${s('w-3 h-3', 'w-4 h-4')} text-[#C2BCB6] dark:text-[#666666]`} />}
         </div>
       </header>
 
@@ -918,7 +919,7 @@ export default function App() {
         {activeTab === 'settings' && <SettingsView profile={profile} updateProfile={updateProfile} user={user} auth={auth} isLarge={isLarge} />}
       </main>
 
-      <nav className={`bg-[#F7F5F2]/95 dark:bg-[#121212]/95 backdrop-blur-md border-t border-[#EBE8E3] dark:border-[#2A2A2A] px-2 ${s('pt-2 pb-6', 'pt-3 pb-8')} flex justify-around items-center fixed bottom-0 w-full max-w-md z-40`}>
+      <nav className={`bg-[#F7F5F2]/95 dark:bg-[#121212]/95 backdrop-blur-md border-t border-[#EBE8E3] dark:border-[#2A2A2A] px-2 ${s('pt-2 pb-6', 'pt-2.5 pb-8')} flex justify-around items-center fixed bottom-0 w-full max-w-md z-40`}>
         <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={Home} label="首頁" isLarge={isLarge} />
         <NavButton active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
         <NavButton active={activeTab === 'trend'} onClick={() => setActiveTab('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
@@ -934,9 +935,9 @@ export default function App() {
 function NavButton({ active, onClick, icon: Icon, label, isLarge }) {
   const s = (n, l) => isLarge ? l : n;
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1.5 p-2 w-20')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
-      <Icon className={`${s('w-[18px] h-[18px]', 'w-7 h-7')} ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
-      <span className={`${s('text-[9px] font-medium', 'text-xs font-bold')} tracking-widest m-0`}>{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1 p-2 w-[70px]')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
+      <Icon className={`${s('w-[18px] h-[18px]', 'w-6 h-6')} ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
+      <span className={`${s('text-[9px] font-medium', 'text-[11px] font-bold')} tracking-widest m-0`}>{label}</span>
       <div className={`${s('w-1 h-1 mt-0.5', 'w-1.5 h-1.5 mt-1')} rounded-full bg-[#8C8477] dark:bg-[#A1988B] transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`} />
     </button>
   );
@@ -1042,7 +1043,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
     <div className={`p-6 animate-in fade-in duration-500 overflow-hidden ${s('pb-28', 'pb-32')}`}>
       <div className="flex border-b border-[#E8E4DF] dark:border-[#3A3A3A] mb-6">
         {[{ id: 'weight', label: '體重' }, { id: 'diet', label: '飲食' }, { id: 'exercise', label: '運動' }].map(mode => (
-          <button key={mode.id} onClick={() => setViewMode(mode.id)} className={`flex-1 ${s('pb-2 text-[10px]', 'pb-3.5 text-sm')} tracking-widest transition-all relative ${viewMode === mode.id ? `text-[#8C8477] dark:text-[#A1988B] ${s('font-medium', 'font-bold')}` : `text-[#C2BCB6] dark:text-[#666666] ${s('font-light', 'font-medium')}`}`}>
+          <button key={mode.id} onClick={() => setViewMode(mode.id)} className={`flex-1 ${s('pb-2 text-[10px]', 'pb-3 text-[13px]')} tracking-widest transition-all relative ${viewMode === mode.id ? `text-[#8C8477] dark:text-[#A1988B] ${s('font-medium', 'font-bold')}` : `text-[#C2BCB6] dark:text-[#666666] ${s('font-light', 'font-medium')}`}`}>
             {mode.label}
             {viewMode === mode.id && <div className={`absolute bottom-0 left-0 w-full border-[#8C8477] dark:border-[#A1988B] ${s('border-b-[2px]', 'border-b-[3px]')}`} />}
           </button>
@@ -1050,14 +1051,14 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
       </div>
 
       <div className="flex justify-between items-center mb-5 px-1">
-        <button onClick={() => shiftMonth(-1)} className={`${s('p-1.5', 'p-2')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronLeft className={s('w-4 h-4', 'w-6 h-6')} /></button>
-        <h2 className={`${s('text-xs font-medium', 'text-base font-bold')} tracking-[0.2em] text-[#5C5C5C] dark:text-[#D1D1D1]`}>{year} . {String(month + 1).padStart(2, '0')}</h2>
-        <button onClick={() => shiftMonth(1)} className={`${s('p-1.5', 'p-2')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronRight className={s('w-4 h-4', 'w-6 h-6')} /></button>
+        <button onClick={() => shiftMonth(-1)} className={`${s('p-1.5', 'p-1.5')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronLeft className={s('w-4 h-4', 'w-5 h-5')} /></button>
+        <h2 className={`${s('text-xs font-medium', 'text-[15px] font-bold')} tracking-[0.2em] text-[#5C5C5C] dark:text-[#D1D1D1]`}>{year} . {String(month + 1).padStart(2, '0')}</h2>
+        <button onClick={() => shiftMonth(1)} className={`${s('p-1.5', 'p-1.5')} hover:bg-[#EFECE7] dark:hover:bg-[#333333] rounded-full text-[#8C8477] dark:text-[#A1988B] active:scale-90 transition-transform`}><ChevronRight className={s('w-4 h-4', 'w-5 h-5')} /></button>
       </div>
 
       <div className="w-full relative">
-        <div className="grid grid-cols-7 gap-1.5 mb-2">
-          {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className={`text-center tracking-widest text-[#C2BCB6] dark:text-[#666666] ${s('text-[9px] font-medium', 'text-xs font-bold')}`}>{d}</div>)}
+        <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-1')} mb-2`}>
+          {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} className={`text-center tracking-widest text-[#C2BCB6] dark:text-[#666666] ${s('text-[9px] font-medium', 'text-[11px] font-bold')}`}>{d}</div>)}
         </div>
 
         <div className="-mr-6">
@@ -1068,9 +1069,9 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
           >
             {monthsData.map((mData) => (
               <div key={mData.id} className="w-1/5 shrink-0 pr-6">
-                <div className="grid grid-cols-7 gap-1.5">
+                <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-1')}`}>
                   {mData.days.map((date, idx) => {
-                    const heightClass = s('h-[3.8rem]', 'h-[4.8rem]');
+                    const heightClass = s('h-[3.8rem]', 'h-[4.2rem]');
                     if (!date) return <div key={`e-${idx}`} className={`${heightClass} bg-transparent pointer-events-none`}></div>;
                     
                     const dStr = getDateString(date);
@@ -1089,26 +1090,26 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         }
                         const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
-                        const iconSize = s("5", "8");
+                        const iconSize = s("5", "7");
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[11px] mt-1')} text-[#9AA899] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[11px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
-                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[11px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666]`}>- 0.00</span>;
+                          if (nDiff > 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#9AA899] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L22 20H2L12 3Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else if (nDiff < 0) diffEl = <span className={`${s('text-[8px] mt-0.5', 'text-[10px] mt-1')} text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center gap-[1px]`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor"><path d="M12 21L2 4H22L12 21Z"/></svg>{Math.abs(nDiff).toFixed(2)}</span>;
+                          else diffEl = <span className={`${s('text-[8px] mt-0.5 font-light', 'text-[10px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666]`}>- 0.00</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-base')} leading-none`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center"><span className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] ${s('text-[11px]', 'text-[14px]')} leading-none`}>{latestW}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className={`${s('text-[10px]', 'text-sm')} font-bold text-[#9AA899]`}>{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#9AA899]`}>{cals > 0 ? cals : '✓'}</span>;
                       } else if (viewMode === 'exercise') {
                         const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        cellContent = <span className={`${s('text-[10px]', 'text-sm')} font-bold text-[#C4A495]`}>{cals > 0 ? cals : '✓'}</span>;
+                        cellContent = <span className={`${s('text-[10px]', 'text-[12px]')} font-bold text-[#C4A495]`}>{cals > 0 ? cals : '✓'}</span>;
                       }
                     }
 
                     return (
-                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-2')} flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
-                        <span className={`${s('text-[8px] mb-1 font-medium', 'text-xs mb-1.5 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'}`}>{date.getDate()}</span>
+                      <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-1.5')} flex flex-col items-center transition-colors border active:scale-95 ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
+                        <span className={`${s('text-[8px] mb-1 font-medium', 'text-[11px] mb-1 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'}`}>{date.getDate()}</span>
                         <div className="flex-1 flex items-center justify-center pointer-events-none">{cellContent}</div>
                       </button>
                     );
@@ -1119,7 +1120,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
           </div>
         </div>
       </div>
-      <p className={`text-center text-[#C2BCB6] dark:text-[#666666] tracking-widest ${s('text-[9px] mt-6 font-light', 'text-xs mt-8 font-medium')}`}>點擊日期即可查看或編輯紀錄，左右滑動切換月份</p>
+      <p className={`text-center text-[#C2BCB6] dark:text-[#666666] tracking-widest ${s('text-[9px] mt-6 font-light', 'text-[11px] mt-8 font-medium')}`}>點擊日期即可查看或編輯紀錄，左右滑動切換月份</p>
     </div>
   );
 }
@@ -1148,9 +1149,9 @@ function TrendChart({ records, isLarge }) {
       <div className={`p-6 animate-in fade-in ${s('pb-28', 'pb-32')}`}>
         <TrendFilters range={range} setRange={setRange} isLarge={isLarge} />
         <div className={`text-center text-[#A89F91] dark:text-[#888888] ${s('mt-24', 'mt-28')}`}>
-          <TrendingUp className={`${s('w-8 h-8', 'w-12 h-12')} mx-auto text-[#D6D0C4] dark:text-[#4A4A4A] mb-4 stroke-[1.5]`} />
-          <p className={`tracking-widest ${s('font-medium text-[10px]', 'font-bold text-sm')}`}>資料不足</p>
-          <p className={`${s('text-[9px]', 'text-xs font-medium')} mt-2 font-light`}>需要兩天以上的紀錄來產生趨勢線</p>
+          <TrendingUp className={`${s('w-8 h-8', 'w-10 h-10')} mx-auto text-[#D6D0C4] dark:text-[#4A4A4A] mb-4 stroke-[1.5]`} />
+          <p className={`tracking-widest ${s('font-medium text-[10px]', 'font-bold text-[12px]')}`}>資料不足</p>
+          <p className={`${s('text-[9px]', 'text-[11px] font-medium')} mt-2 font-light`}>需要兩天以上的紀錄來產生趨勢線</p>
         </div>
       </div>
     );
@@ -1165,7 +1166,7 @@ function TrendChart({ records, isLarge }) {
 
   const width = 320;
   const height = 180;
-  const paddingX = s(20, 25); 
+  const paddingX = s(20, 20); 
   const paddingY = 25;
 
   const points = weightData.map((d, i) => ({
@@ -1189,10 +1190,10 @@ function TrendChart({ records, isLarge }) {
   return (
     <div className={`p-6 animate-in fade-in duration-500 flex flex-col gap-5 ${s('pb-28', 'pb-32')}`}>
       <TrendFilters range={range} setRange={setRange} isLarge={isLarge} />
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-5', 'p-6')}`}>
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-5', 'p-5')}`}>
         <div className="flex justify-between items-end mb-6 px-1">
-          <h2 className={`${s('text-[10px] font-medium', 'text-sm font-bold')} tracking-[0.2em] text-[#8C8477] dark:text-[#A1988B] uppercase`}>Weight Trend</h2>
-          <span className={`${s('text-[9px] font-light', 'text-xs font-medium')} text-[#A89F91] dark:text-[#888888]`}>{weightData[0].date.replace(/-/g, '.')} ~ {weightData[weightData.length-1].date.replace(/-/g, '.')}</span>
+          <h2 className={`${s('text-[10px] font-medium', 'text-[12px] font-bold')} tracking-[0.2em] text-[#8C8477] dark:text-[#A1988B] uppercase`}>Weight Trend</h2>
+          <span className={`${s('text-[9px] font-light', 'text-[11px] font-medium')} text-[#A89F91] dark:text-[#888888]`}>{weightData[0].date.replace(/-/g, '.')} ~ {weightData[weightData.length-1].date.replace(/-/g, '.')}</span>
         </div>
         <div className="overflow-x-auto overflow-y-hidden custom-scrollbar pb-2">
           <svg width={width} height={height} className="mx-auto overflow-visible">
@@ -1202,7 +1203,7 @@ function TrendChart({ records, isLarge }) {
               return (
                 <g key={`y-${r}`}>
                   <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} className="stroke-[#F0ECE7] dark:stroke-[#333333]" strokeWidth="1" strokeDasharray="3 3" />
-                  <text x={paddingX - 8} y={y + 4} fontSize={s("8", "12")} className={`fill-[#C2BCB6] dark:fill-[#666666] ${s('font-light', 'font-medium')}`} textAnchor="end">{val}</text>
+                  <text x={paddingX - 8} y={y + 4} fontSize={s("8", "10")} className={`fill-[#C2BCB6] dark:fill-[#666666] ${s('font-light', 'font-medium')}`} textAnchor="end">{val}</text>
                 </g>
               );
             })}
@@ -1210,7 +1211,7 @@ function TrendChart({ records, isLarge }) {
             {xAxisLabels.map((lbl, i) => (
               <g key={`x-${i}`}>
                 <line x1={lbl.x} y1={paddingY} x2={lbl.x} y2={height - paddingY} className="stroke-[#F9F8F6] dark:stroke-[#2A2A2A]" strokeWidth="1" />
-                <text x={lbl.x} y={height - paddingY + 18} fontSize={s("8", "12")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
+                <text x={lbl.x} y={height - paddingY + 18} fontSize={s("8", "10")} className={`fill-[#A89F91] dark:fill-[#888888] ${s('font-light', 'font-medium')}`} textAnchor="middle">{lbl.label}</text>
               </g>
             ))}
 
@@ -1227,7 +1228,7 @@ const TrendFilters = ({ range, setRange, isLarge }) => {
   return (
     <div className={`flex bg-white dark:bg-[#1E1E1E] rounded-2xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-1', 'p-1.5')}`}>
       {['1M', '3M', '6M', '12M', 'ALL'].map(r => (
-        <button key={r} onClick={() => setRange(r)} className={`flex-1 tracking-widest rounded-xl transition-all ${s('py-2 text-[9px] font-medium', 'py-3 text-xs font-bold')} ${range === r ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#8C8477] dark:text-[#A1988B] shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A]' : 'text-[#C2BCB6] dark:text-[#666666]'}`}>{r}</button>
+        <button key={r} onClick={() => setRange(r)} className={`flex-1 tracking-widest rounded-xl transition-all min-w-0 truncate ${s('py-2 text-[9px] font-medium', 'py-2 text-[11px] font-bold')} ${range === r ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#8C8477] dark:text-[#A1988B] shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A]' : 'text-[#C2BCB6] dark:text-[#666666]'}`}>{r}</button>
       ))}
     </div>
   );
@@ -1239,78 +1240,78 @@ function SettingsView({ profile, updateProfile, user, auth, isLarge }) {
   const themeMode = profile.themeMode || 'auto';
 
   return (
-    <div className={`p-6 animate-in fade-in duration-500 ${s('space-y-5 pb-28', 'space-y-6 pb-32')}`}>
+    <div className={`p-6 animate-in fade-in duration-500 ${s('space-y-5 pb-28', 'space-y-5 pb-32')}`}>
       
       {/* 1. 個人資料設定 */}
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-7 space-y-6')}`}>
-        <h2 className={`${s('text-xs font-medium mb-4', 'text-base font-bold mb-5')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Settings className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 個人資料設定</h2>
-        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-5')}`}>
-          <div className={s('space-y-2', 'space-y-3')}>
-            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>GENDER</label>
-            <div className={`flex ${s('gap-2', 'gap-2.5')}`}>
-              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
-              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-6 space-y-5')}`}>
+        <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Settings className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 個人資料設定</h2>
+        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
+          <div className={s('space-y-2', 'space-y-2')}>
+            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>GENDER</label>
+            <div className={`flex ${s('gap-2', 'gap-2')}`}>
+              <button onClick={() => updateProfile({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
+              <button onClick={() => updateProfile({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
             </div>
           </div>
-          <div className={s('space-y-2', 'space-y-3')}>
-            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>AGE</label>
-            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
+          <div className={s('space-y-2', 'space-y-2')}>
+            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>AGE</label>
+            <input type="number" value={profile.age || ''} onChange={(e) => updateProfile({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
         </div>
-        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-5')}`}>
-          <div className={s('space-y-2', 'space-y-3')}>
-            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>HEIGHT (cm)</label>
-            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
+        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
+          <div className={s('space-y-2', 'space-y-2')}>
+            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>HEIGHT (cm)</label>
+            <input type="number" value={profile.height || ''} onChange={(e) => updateProfile({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
-          <div className={s('space-y-2', 'space-y-3')}>
-            <label className={`${s('text-[9px]', 'text-sm font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>自訂 TDEE</label>
-            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] ${s('p-2.5 text-xs', 'p-3.5 text-base font-medium')}`} />
+          <div className={s('space-y-2', 'space-y-2')}>
+            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>自訂 TDEE</label>
+            <input type="number" placeholder="自動計算" value={profile.customTDEE || ''} onChange={(e) => updateProfile({ customTDEE: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
         </div>
       </div>
 
       {/* 2. 外觀主題設定 */}
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-7 space-y-5')}`}>
-        <h2 className={`${s('text-xs font-medium mb-4', 'text-base font-bold mb-5')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
-        <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2.5')}`}>
-          <button onClick={() => updateProfile({ themeMode: 'light' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'light' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>亮色</button>
-          <button onClick={() => updateProfile({ themeMode: 'dark' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'dark' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>夜間</button>
-          <button onClick={() => updateProfile({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3.5 text-base font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
+        <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
+        <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2')}`}>
+          <button onClick={() => updateProfile({ themeMode: 'light' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'light' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>亮色</button>
+          <button onClick={() => updateProfile({ themeMode: 'dark' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'dark' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>夜間</button>
+          <button onClick={() => updateProfile({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
         </div>
-        <p className={`${s('text-[10px] mt-1', 'text-sm mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>自動模式將於日落 (18:00) 至日出 (06:00) 期間切換為夜間模式</p>
+        <p className={`${s('text-[10px] mt-1', 'text-[11px] mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>自動模式將於日落 (18:00) 至日出 (06:00) 期間切換為夜間模式</p>
       </div>
 
       {/* 3. 視覺友善切換開關 */}
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex justify-between items-center ${s('p-6', 'p-7')}`}>
-        <div className="flex items-center gap-3">
-          <div className={`${s('w-10 h-10 rounded-xl', 'w-12 h-12 rounded-2xl')} bg-[#F5F2EB] dark:bg-[#2C2A25] flex items-center justify-center`}>
-            <span className={`${s('text-base font-medium', 'text-xl font-bold')} text-[#A89F91] dark:text-[#888888]`}>Aa</span>
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex justify-between items-center ${s('p-6', 'p-6')}`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`${s('w-10 h-10 rounded-xl', 'w-11 h-11 rounded-2xl')} bg-[#F5F2EB] dark:bg-[#2C2A25] flex items-center justify-center shrink-0`}>
+            <span className={`${s('text-base font-medium', 'text-lg font-bold')} text-[#A89F91] dark:text-[#888888]`}>Aa</span>
           </div>
-          <div>
-            <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-xs', 'text-base font-bold')}`}>視覺友善模式</h3>
-            <p className={`${s('text-[10px] mt-1', 'text-sm mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide`}>放大文字與圖示尺寸</p>
+          <div className="min-w-0">
+            <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest truncate ${s('text-xs', 'text-[14px] font-bold')}`}>視覺友善模式</h3>
+            <p className={`${s('text-[10px] mt-1', 'text-[11px] mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide truncate`}>放大文字與圖示尺寸</p>
           </div>
         </div>
-        <button onClick={() => updateProfile({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 ${s('w-11 h-6', 'w-14 h-8')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
-          <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-6 h-6')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-6') : 'translate-x-0'}`} />
+        <button onClick={() => updateProfile({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 shrink-0 ml-2 ${s('w-11 h-6', 'w-12 h-7')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
+          <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
         </button>
       </div>
 
       {/* 4. 雲端備份 */}
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-7 space-y-5')}`}>
-        <h2 className={`${s('text-xs font-medium mb-2', 'text-base font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-6 h-6')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
+        <h2 className={`${s('text-xs font-medium mb-2', 'text-[14px] font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
         {user && !user.isAnonymous ? (
-          <div className={`${s('space-y-3 pt-1', 'space-y-4 pt-1')}`}>
-            <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-xl border border-[#E8E4DF] dark:border-[#3A3A3A] flex items-center gap-3 ${s('p-3', 'p-4')}`}>
-              <CheckCircle2 className={`${s('w-4 h-4', 'w-6 h-6')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
-              <span className={`${s('text-[11px]', 'text-base')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate`}>{user.email}</span>
+          <div className={`${s('space-y-3 pt-1', 'space-y-3 pt-1')}`}>
+            <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-xl border border-[#E8E4DF] dark:border-[#3A3A3A] flex items-center gap-3 ${s('p-3', 'p-3.5')}`}>
+              <CheckCircle2 className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5] shrink-0`} />
+              <span className={`${s('text-[11px]', 'text-[13px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate min-w-0`}>{user.email}</span>
             </div>
-            <button onClick={() => { signOut(auth); window.location.reload(); }} className={`w-full bg-white dark:bg-[#1E1E1E] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-medium tracking-widest border border-[#F0ECE7] dark:border-[#333333] active:scale-95 ${s('py-3 text-[11px]', 'py-4 text-base font-bold')}`}>登出帳號</button>
+            <button onClick={() => { signOut(auth); window.location.reload(); }} className={`w-full bg-white dark:bg-[#1E1E1E] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-medium tracking-widest border border-[#F0ECE7] dark:border-[#333333] active:scale-95 ${s('py-3 text-[11px]', 'py-3.5 text-[13px] font-bold')}`}>登出帳號</button>
           </div>
         ) : (
-          <div className={s('space-y-3', 'space-y-5')}>
-            <p className={`${s('text-[10px] font-light', 'text-sm font-medium')} text-[#A89F91] dark:text-[#888888] leading-relaxed`}>目前為訪客模式。綁定 Google 帳號可確保資料永久保存並跨裝置同步。</p>
-            <button onClick={() => { signInWithPopup(auth, new GoogleAuthProvider()).catch(()=>{}); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95 shadow-sm ${s('py-3 text-[11px]', 'py-4 text-base font-bold')}`}>
+          <div className={s('space-y-3', 'space-y-4')}>
+            <p className={`${s('text-[10px] font-light', 'text-[12px] font-medium')} text-[#A89F91] dark:text-[#888888] leading-relaxed`}>目前為訪客模式。綁定 Google 帳號可確保資料永久保存並跨裝置同步。</p>
+            <button onClick={() => { signInWithPopup(auth, new GoogleAuthProvider()).catch(()=>{}); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-medium tracking-widest active:scale-95 shadow-sm ${s('py-3 text-[11px]', 'py-3.5 text-[13px] font-bold')}`}>
               綁定 GOOGLE 帳號
             </button>
           </div>
