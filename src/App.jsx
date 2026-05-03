@@ -94,6 +94,7 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig }) 
     }
   };
 
+  // 完美相容舊版資料的 value 欄位
   const displayValue = record.calories ?? record.value ?? 0;
 
   return (
@@ -187,19 +188,12 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
   const [modalState, setModalState] = useState(null); 
-
-  // ============================================================
-  // BUG FIX: 將 isInitialLoad 拆成兩個獨立 flag
-  // - isInitialLoad: 控制全局 loading 畫面（給 Firebase auth 用）
-  // - recordsReady: 只在 onSnapshot 確實拿到第一筆資料後才設為 true
-  //   這樣即使 iOS bfcache 恢復時 records 是空的，也不會提前渲染空資料
-  // ============================================================
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [recordsReady, setRecordsReady] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true); 
+  const [appRefreshKey, setAppRefreshKey] = useState(0); // 新增：用於強制重整資料監聽的關鍵 Key
   
   const todayStrRef = useRef(getDateString(new Date()));
   const [todayStr, setTodayStr] = useState(todayStrRef.current);
-  const [targetDate, setTargetDate] = useState(todayStrRef.current);
+  const [targetDate, setTargetDate] = useState(todayStr);
 
   const [profile, setProfile] = useState({
     height: 165, age: 30, gender: 'female', customTDEE: '', 
@@ -221,16 +215,7 @@ export default function App() {
   const [records, setRecords] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // ============================================================
-  // BUG FIX: iOS Safari bfcache 恢復偵測
-  // 當 pageshow 的 persisted 為 true，代表是從 bfcache 恢復，
-  // 此時 React state 是舊快照，Firebase listener 也已斷開。
-  // 必須重置 recordsReady，讓畫面回到 loading 狀態，
-  // 等待重新建立的 onSnapshot 推送最新資料後再顯示。
-  // ============================================================
-  const unsubRecordsRef = useRef(null);
-  const unsubProfileRef = useRef(null);
-
+  // --- 手機網頁/PWA 喚醒偵測 ---
   useEffect(() => {
     const handleWake = () => {
       const newToday = getDateString(new Date());
@@ -239,44 +224,17 @@ export default function App() {
         todayStrRef.current = newToday;
         setTodayStr(newToday);
       }
+      // 每次喚醒強制更新 key，讓 Firebase 重新綁定監聽，破解 Safari bfcache 凍結狀態
+      setAppRefreshKey(k => k + 1);
     };
-
-    // pageshow 是最可靠的 iOS bfcache 恢復事件
-    const handlePageShow = (e) => {
-      handleWake();
-      if (e.persisted) {
-        // 從 bfcache 恢復：重置 recordsReady，讓畫面顯示 loading
-        // Firebase listener 會在 user effect 重新訂閱後推送最新資料
-        setRecordsReady(false);
-        // 強制重新觸發 Firebase 訂閱
-        // 透過清除再重建 user 狀態觸發
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          // 重新建立 Firestore listener
-          if (unsubRecordsRef.current) unsubRecordsRef.current();
-          if (unsubProfileRef.current) unsubProfileRef.current();
-          
-          const recordsRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'health_records');
-          const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
-
-          unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
-            if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() }));
-          });
-
-          unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
-            const newRec = {};
-            snap.forEach(doc => newRec[doc.id] = doc.data());
-            setRecords(newRec);
-            setRecordsReady(true); // 資料確實到位才開放渲染
-          });
-        }
-      }
-    };
-
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') handleWake();
     };
-
+    const handlePageShow = (e) => {
+      // 專門針對 iOS Safari bfcache 的強制作為
+      if (e.persisted) handleWake(); 
+    };
+    
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleWake);
     window.addEventListener('pageshow', handlePageShow);
@@ -303,53 +261,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // 清除舊的 listener
-    if (unsubRecordsRef.current) { unsubRecordsRef.current(); unsubRecordsRef.current = null; }
-    if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
-
-    if (!user) {
-      setRecords({});
-      setRecordsReady(true); // 無用戶也要放行，否則永遠 loading
-      setIsInitialLoad(false);
-      return;
-    }
-
-    // 重置 recordsReady，等待新的 snapshot 到來
-    setRecordsReady(false);
-
+    if (!user) { setRecords({}); setIsInitialLoad(false); return; }
     const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'health_records');
     const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main');
 
-    unsubProfileRef.current = onSnapshot(profileRef, (snap) => {
-      if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() }));
-    });
-
-    unsubRecordsRef.current = onSnapshot(recordsRef, (snap) => {
-      const newRec = {};
-      snap.forEach(doc => newRec[doc.id] = doc.data());
+    const unsubProfile = onSnapshot(profileRef, (snap) => { if (snap.exists()) setProfile(p => ({ ...p, ...snap.data() })); });
+    const unsubRecords = onSnapshot(recordsRef, (snap) => {
+      const newRec = {}; snap.forEach(doc => newRec[doc.id] = doc.data()); 
       setRecords(newRec);
-      setRecordsReady(true); // ← 關鍵：資料確實到位才開放渲染
       setIsInitialLoad(false);
     });
-
-    return () => {
-      if (unsubRecordsRef.current) { unsubRecordsRef.current(); unsubRecordsRef.current = null; }
-      if (unsubProfileRef.current) { unsubProfileRef.current(); unsubProfileRef.current = null; }
-    };
-  }, [user]);
+    return () => { unsubProfile(); unsubRecords(); };
+  }, [user, appRefreshKey]); // <--- 加上 appRefreshKey 依賴，確保每次從背景喚醒都強制重新抓取最新快照
 
   useEffect(() => {
-    if (!user || !profile.age || !recordsReady) return;
+    if (!user || !profile.age || isInitialLoad) return;
     const timeoutId = setTimeout(async () => {
       setIsSyncing(true);
       await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'main'), profile, { merge: true }).catch(()=>{});
       setIsSyncing(false);
     }, 1500); 
     return () => clearTimeout(timeoutId);
-  }, [profile, user, recordsReady]);
+  }, [profile, user, isInitialLoad]);
 
   // ============================================================================
-  // 核心資料計算（直接從最新的 records state 讀取，無快取）
+  // --- 核心資料強制獨立計算 (完全拔除快取 useMemo，確保畫面永遠不會卡住) ---
   // ============================================================================
   const currentData = records[targetDate] || {};
   
@@ -358,6 +294,7 @@ export default function App() {
   const arrDiet = getArrayData(currentData, 'diet');
   const arrEx = getArrayData(currentData, 'exercise');
 
+  // 最新體重（自動往前回溯）
   let latestWeight = null;
   if (arrWeight.length > 0) {
     latestWeight = arrWeight[arrWeight.length - 1].value;
@@ -374,10 +311,12 @@ export default function App() {
     }
   }
 
+  // 總熱量與水量計算 (相容新舊資料結構)
   const totalWater = arrWater.reduce((sum, i) => sum + Number(i.value), 0);
   const totalIntake = arrDiet.reduce((sum, d) => sum + (Number(d.calories ?? d.value) || 0), 0);
   const totalExCals = arrEx.reduce((sum, ex) => sum + (Number(ex.calories ?? ex.value) || 0), 0);
 
+  // 體重變化計算
   let weightChange = null;
   let prevWeight = null;
   const targetDObj = new Date(targetDate);
@@ -394,6 +333,7 @@ export default function App() {
     weightChange = (latestWeight - prevWeight).toFixed(2);
   }
 
+  // TDEE 計算 (相容新舊資料結構)
   let tdee = 0;
   if (profile.height && profile.age) {
     if (profile.customTDEE && Number(profile.customTDEE) > 0) {
@@ -527,6 +467,7 @@ export default function App() {
   // --- 畫面渲染 ---
   const renderHome = () => (
     <div className="p-6 space-y-4 animate-in fade-in duration-500 pb-28">
+      {/* 儀表板：可點擊的頂部日期區域 */}
       <div className="flex items-center justify-between bg-white p-3.5 rounded-3xl border border-[#F0ECE7] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
         <button onClick={() => setModalState({ view: 'datepicker' })} className="flex items-center gap-2.5 text-[#5C5C5C] font-medium tracking-wider text-sm active:scale-95 transition-transform">
           <div className="w-8 h-8 rounded-xl bg-[#F9F8F6] flex items-center justify-center border border-[#E8E4DF]">
@@ -730,12 +671,6 @@ export default function App() {
     }
   };
 
-  // ============================================================
-  // BUG FIX: loading 條件改為同時檢查 isInitialLoad 和 recordsReady
-  // 只有在 recordsReady 為 true 時才渲染實際內容
-  // ============================================================
-  const showLoading = isInitialLoad || !recordsReady;
-
   return (
     <div className="max-w-md mx-auto h-[100dvh] flex flex-col bg-[#F7F5F2] font-sans text-[#4A4A4A] overflow-hidden shadow-2xl relative">
       <header className="bg-[#F7F5F2]/90 backdrop-blur-md px-6 py-4 z-10 flex justify-center border-b border-[#EBE8E3] sticky top-0">
@@ -749,7 +684,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto relative custom-scrollbar">
-        {showLoading ? (
+        {isInitialLoad ? (
           <div className="flex flex-col items-center justify-center h-full text-[#C2BCB6] pb-20">
             <Activity className="w-8 h-8 animate-spin mb-4 stroke-[1.5] text-[#8C8477]" />
             <p className="text-[10px] tracking-widest font-medium">資料同步中</p>
@@ -867,6 +802,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate }) {
     };
   }, []);
 
+  // 此處不需要拔除 useMemo，因為沒有跟最新狀態互動的問題
   const monthsData = React.useMemo(() => {
     return [-2, -1, 0, 1, 2].map(offset => {
       const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
