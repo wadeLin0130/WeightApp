@@ -246,6 +246,8 @@ export default function App() {
 
   // --- 夜間模式與時間監聽邏輯 ---
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
     const checkTheme = () => {
       let isDarkTheme = false;
       if (themeMode === 'dark') {
@@ -253,8 +255,8 @@ export default function App() {
       } else if (themeMode === 'light') {
         isDarkTheme = false;
       } else {
-        const hour = new Date().getHours();
-        isDarkTheme = (hour < 6 || hour >= 18);
+        // 跟隨系統設定
+        isDarkTheme = mediaQuery.matches;
       }
       setIsDark(isDarkTheme);
 
@@ -268,8 +270,14 @@ export default function App() {
     };
     
     checkTheme();
-    const timer = setInterval(checkTheme, 60000);
-    return () => clearInterval(timer);
+    
+    // 監聽系統主題變更
+    const handleThemeChange = () => {
+      if (themeMode === 'auto') checkTheme();
+    };
+    mediaQuery.addEventListener('change', handleThemeChange);
+    
+    return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [themeMode]);
 
   useEffect(() => {
@@ -860,7 +868,7 @@ export default function App() {
         <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
           <div className={`grid grid-cols-3 ${s('gap-3', 'gap-2 sm:gap-3')}`}>
             {cards.map(card => (
-              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-3 gap-2')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm min-w-0 ${colorClass.split(' ')[2]}`}>
+              <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.name, calories: card.defaultCalories }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-3 gap-2')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm min-w-0 ${colorClass.split(' ')[2]}`}>
                 <DynamicIcon name={card.icon} className={`${s('w-6 h-6', 'w-7 h-7')} stroke-[1.5] shrink-0 ${colorClass.split(' ')[0]}`} />
                 <span className={`${s('text-[10px]', 'text-[12px] font-bold')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate w-full text-center`}>{card.name}</span>
               </button>
@@ -905,14 +913,18 @@ export default function App() {
 
     if (view === 'new_card') {
       const availableIcons = isDiet ? ['Coffee','Apple','Pizza','Carrot','Fish','Beef','Utensils'] : ['Activity','Dumbbell','Flame','Bike','Shuttlecock','HeartPulse','Target'];
+      // 動態提示文字
+      const namePlaceholder = isDiet ? '例如：拿鐵' : '例如：跳繩';
       return (
         <ModalLayout title="新增專屬卡片" onBack={() => setModalState({view: 'select', category, dateStr: operateDate})}>
           <form onSubmit={(e) => {
             e.preventDefault();
             const name = e.target.cardName.value;
             const icon = e.target.iconSelect.value;
+            const defCals = e.target.defaultCalories.value;
             if(!name) return;
             const newCard = { id: Date.now().toString(), name, icon };
+            if (defCals) newCard.defaultCalories = defCals;
             updateProfile(p => ({
               ...p,
               [isDiet ? 'dietCards' : 'exerciseCards']: [...p[isDiet ? 'dietCards' : 'exerciseCards'], newCard]
@@ -921,7 +933,11 @@ export default function App() {
           }} className={s('space-y-5', 'space-y-5')}>
             <div>
               <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>名稱</label>
-              <input name="cardName" type="text" placeholder="例如：拿鐵" required className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
+              <input name="cardName" type="text" placeholder={namePlaceholder} required className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
+            </div>
+            <div>
+              <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>預設熱量 (選填)</label>
+              <input name="defaultCalories" type="number" placeholder="例如：300" className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
             </div>
             <div>
               <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>圖標</label>
