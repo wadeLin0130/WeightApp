@@ -4,7 +4,8 @@ import {
   Flame, Utensils, Droplets, X, Plus, ChevronLeft, ChevronRight, CheckCircle2,
   Cloud, CloudOff, ShieldCheck, Activity, Dumbbell, Coffee, Apple, Pizza, Carrot, 
   Fish, Beef, Bike, Zap, HeartPulse, Delete, Trash2,
-  Music, Sun, Moon, Star, Heart, Target, RefreshCw, Moon as MoonIcon
+  Music, Sun, Moon, Star, Heart, Target, RefreshCw, Moon as MoonIcon,
+  Camera, Sparkles, Clock, Loader2, Image as ImageIcon
 } from 'lucide-react';
 
 // --- Firebase 初始化 ---
@@ -12,21 +13,87 @@ import { initializeApp } from "firebase/app";
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, getDocs } from 'firebase/firestore';
 
+// 在 Canvas 預覽環境中會自動注入 __firebase_config
+// 注意：在此編輯器中因編譯器限制無法直接使用 import.meta 語法。
+// 當您下載到本地端 Vite 專案時，請將下方引號內的佔位字串替換為對應的 import.meta.env.VITE_... 變數
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : {
-      apiKey: "AIzaSyBHtWTHEXuSrZBnB4gzh2N7ZvzSVSmjWgg",
-      authDomain: "myweightapp-281cb.firebaseapp.com",
-      projectId: "myweightapp-281cb",
-      storageBucket: "myweightapp-281cb.firebasestorage.app",
-      messagingSenderId: "476667742331",
-      appId: "1:476667742331:web:09feb9c64766c0c9e1fade"
+      apiKey: "VITE_FIREBASE_API_KEY",
+      authDomain: "VITE_FIREBASE_AUTH_DOMAIN",
+      projectId: "VITE_FIREBASE_PROJECT_ID",
+      storageBucket: "VITE_FIREBASE_STORAGE_BUCKET",
+      messagingSenderId: "VITE_FIREBASE_MESSAGING_SENDER_ID",
+      appId: "VITE_FIREBASE_APP_ID"
     };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId || 'default-app-id');
+
+// --- Gemini API 封裝 (安全版) ---
+const fetchGemini = async (payload) => {
+  // 【重要修改】: 這裡不再直接呼叫 Google，而是呼叫你的 Vercel 後端 API
+  // 你的 API 金鑰安全地存放在 Vercel 伺服器上，不會暴露給瀏覽器
+  const url = `/api/gemini`;
+  
+  let retries = 5;
+  let delay = 1000;
+  while (retries > 0) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "0";
+    } catch (error) {
+      retries--;
+      if (retries === 0) throw error;
+      await new Promise(r => setTimeout(r, delay));
+      delay *= 2;
+    }
+  }
+};
+
+const estimateDietCalories = async (base64Str) => {
+  const b64Data = base64Str.split(',')[1]; // 移除 data:image/jpeg;base64, 前綴
+  const payload = {
+    contents: [{
+      role: "user",
+      parts: [
+        { text: "請估算這份食物的熱量。請直接回覆我一個數字即可（代表大卡），不要有任何其他文字或符號。如果無法辨識，請回覆 0。" },
+        { inlineData: { mimeType: "image/jpeg", data: b64Data } }
+      ]
+    }]
+  };
+  return await fetchGemini(payload);
+};
+
+const estimateDietCaloriesText = async (name, fullness, weight, height, age, gender) => {
+  const genderStr = gender === 'male' ? '男性' : '女性';
+  const payload = {
+    contents: [{
+      parts: [{ text: `我是一名 ${age} 歲的${genderStr}，身高 ${height} 公分，體重 ${weight} 公斤。我吃了一份「${name}」，飽足感是「${fullness}」。請為我估算這份食物大概是多少大卡熱量？請直接回覆我一個整數即可，不要有任何其他文字或符號。` }]
+    }],
+    systemInstruction: { parts: [{ text: "你是一個專業的營養師，擅長精準估算食物熱量。" }] }
+  };
+  return await fetchGemini(payload);
+};
+
+const estimateExercisePower = async (type, weight, height, age, gender) => {
+  const genderStr = gender === 'male' ? '男性' : '女性';
+  const payload = {
+    contents: [{
+      parts: [{ text: `我是一名 ${age} 歲的${genderStr}，身高 ${height} 公分，體重 ${weight} 公斤。我正在做「${type}」運動。請為我估算這項運動「每分鐘」會消耗多少大卡熱量？請直接回覆我一個整數即可，不要有任何其他文字或符號。` }]
+    }],
+    systemInstruction: { parts: [{ text: "你是一個專業的健身教練與營養師，擅長精準估算熱量消耗功率。" }] }
+  };
+  return await fetchGemini(payload);
+};
 
 // --- 本地儲存封裝 ---
 const safeStorage = {
@@ -41,7 +108,7 @@ const safeStorage = {
 };
 
 const DEFAULT_PROFILE = {
-  height: 165, age: 30, gender: 'female', customTDEE: '', 
+  height: '', birthYear: '', gender: 'female', customTDEE: '', 
   visualFriendly: false, themeMode: 'auto',
   dietCards: [
     { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bf', name: '早餐', icon: 'Coffee' },
@@ -50,7 +117,7 @@ const DEFAULT_PROFILE = {
   ],
   exerciseCards: [
     { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bd', name: '羽球', icon: 'Shuttlecock' },
-    { id: 'bx', name: '拳擊有氧', icon: 'Flame' }, { id: 'bp', name: '槓鈴有氧', icon: 'Dumbbell' }
+    { id: 'bx', name: '有氧', icon: 'Flame' }, { id: 'bp', name: '重量訓練', icon: 'Dumbbell' }
   ]
 };
 
@@ -92,6 +159,36 @@ const getArrayData = (data, key) => {
   return [];
 };
 
+// --- 圖片壓縮函數 (Canvas) ---
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 600;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+        } else {
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7)); // 壓縮為 JPEG
+      };
+    };
+  });
+};
+
 // --- 左滑刪除元件 ---
 const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, isLarge }) => {
   const s = (n, l) => isLarge ? l : n;
@@ -128,6 +225,7 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
   };
 
   const displayValue = record.calories ?? record.value ?? 0;
+  const hasImage = !!record.image;
 
   return (
     <div className="relative w-full mb-3 rounded-2xl overflow-hidden touch-pan-y bg-[#C78D87] dark:bg-[#B86C65]">
@@ -151,10 +249,23 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
         <div className="flex items-center gap-3 min-w-0 flex-1 pointer-events-none">
           <span className={`${s('text-[10px] w-10', 'text-[13px] w-12')} text-[#A89F91] dark:text-[#888888] font-medium shrink-0`}>{record.time}</span>
           <div className={`${s('h-4', 'h-5')} w-[1.5px] bg-[#D6D0C4] dark:bg-[#4A4A4A] shrink-0`}></div>
-          <span className={`${s('text-xs', 'text-[15px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate min-w-0`}>
-            {(isDiet || isEx) ? (record.content || record.type) : '紀錄數值'}
-          </span>
+          <div className="flex flex-col min-w-0">
+            <span className={`${s('text-xs', 'text-[15px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate min-w-0`}>
+              {(isDiet || isEx) ? (record.content || record.type) : '紀錄數值'}
+            </span>
+            {isEx && record.duration && (
+              <span className={`${s('text-[10px]', 'text-[12px]')} text-[#A89F91] dark:text-[#888888] font-medium truncate mt-0.5`}>持續 {record.duration} 分鐘</span>
+            )}
+          </div>
         </div>
+        
+        {/* 縮圖顯示區塊 */}
+        {hasImage && (
+          <div className="ml-2 shrink-0">
+            <img src={record.image} alt="紀錄縮圖" className={`${s('w-10 h-10', 'w-12 h-12')} object-cover rounded-lg border border-[#E8E4DF] dark:border-[#4A4A4A]`} />
+          </div>
+        )}
+        
         <div className="flex items-baseline gap-1 pointer-events-none shrink-0 pl-2">
           <span className={`${s('text-sm', 'text-lg')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
           {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-[11px]')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
@@ -163,6 +274,376 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
     </div>
   );
 };
+
+// --- 紀錄編輯/計算機整合元件 ---
+const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onSave, profile }) => {
+  const s = (n, l) => isLarge ? l : n;
+  
+  // 狀態管理
+  const [name, setName] = useState(item?.content || item?.type || '');
+  const [duration, setDuration] = useState(item?.duration || '');
+  const [image, setImage] = useState(item?.image || null);
+  const [expr, setExpr] = useState(String((category === 'weight' || category === 'water') ? (item?.value || '') : (item?.calories ?? item?.value ?? '')));
+  const [isEstimating, setIsEstimating] = useState(false);
+  const [showFullnessOptions, setShowFullnessOptions] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // 標題與單位
+  let title = '';
+  if (category === 'weight') title = '體重 (kg)';
+  else if (category === 'water') title = '飲水量 (ml)';
+  else if (isDiet) title = `熱量 (kcal)`;
+  else if (isEx) title = `消耗 (kcal)`;
+
+  // 照片上傳處理
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const compressedImage = await compressImage(file);
+    setImage(compressedImage);
+  };
+
+  // AI 估算飲食熱量 (圖片)
+  const handleEstimateDietImage = async () => {
+    if (!image) return;
+    setIsEstimating(true);
+    try {
+      const result = await estimateDietCalories(image);
+      const numMatch = result.match(/\d+/);
+      if (numMatch) setExpr(String(parseInt(numMatch[0])));
+    } catch (e) {
+      console.error("AI Estimation failed:", e);
+    }
+    setIsEstimating(false);
+  };
+
+  // AI 估算飲食熱量 (文字 + 飽足感快取機制)
+  const handleEstimateDietText = async (fullness) => {
+    setShowFullnessOptions(false);
+    if (!name) return;
+    setIsEstimating(true);
+    try {
+      const calcAge = profile?.birthYear ? new Date().getFullYear() - Number(profile.birthYear) : 25;
+      const calcHeight = profile?.height ? Number(profile.height) : 160;
+      const calcWeight = latestWeight ? Number(latestWeight) : 60;
+      const calcGender = profile?.gender || 'female';
+
+      const dietCache = safeStorage.get('wt_diet_text_cache') || {};
+      const cacheKey = `${name}_${fullness}_${calcGender}`;
+      const cachedData = dietCache[cacheKey];
+
+      let cals = null;
+      let isFromCache = false;
+
+      // 檢查快取匹配 (體重與年齡誤差 5% 內)
+      if (cachedData) {
+        const weightDiff = Math.abs(calcWeight - cachedData.weight) / cachedData.weight;
+        const ageDiff = Math.abs(calcAge - cachedData.age) / cachedData.age;
+        if (weightDiff <= 0.05 && ageDiff <= 0.05) {
+          cals = cachedData.calories;
+          isFromCache = true;
+        }
+      }
+
+      if (isFromCache) {
+        // 命中快取，模擬 AI 思考延遲
+        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
+      } else {
+        // 未命中快取，請求 API 並寫入
+        const result = await estimateDietCaloriesText(name, fullness, calcWeight, calcHeight, calcAge, calcGender);
+        const numMatch = result.match(/\d+/);
+        if (numMatch) {
+          cals = parseInt(numMatch[0]);
+          dietCache[cacheKey] = {
+            weight: calcWeight,
+            age: calcAge,
+            calories: cals,
+            updatedAt: Date.now()
+          };
+          safeStorage.set('wt_diet_text_cache', dietCache);
+        }
+      }
+
+      if (cals !== null) {
+        setExpr(String(cals));
+      }
+    } catch (e) {
+      console.error("AI Estimation failed:", e);
+    }
+    setIsEstimating(false);
+  };
+
+  // AI 估算運動熱量 (加入功率快取與模擬機制)
+  const handleEstimateExercise = async () => {
+    if (!name || !duration) return;
+    setIsEstimating(true);
+    try {
+      // 缺漏資料時的計算基礎設定
+      const calcAge = profile?.birthYear ? new Date().getFullYear() - Number(profile.birthYear) : 25;
+      const calcHeight = profile?.height ? Number(profile.height) : 160;
+      const calcWeight = latestWeight ? Number(latestWeight) : 60;
+      const calcGender = profile?.gender || 'female';
+      const durNum = Number(duration);
+
+      // 讀取本地端功率快取
+      const powerCache = safeStorage.get('wt_ex_power_cache') || {};
+      const cacheKey = `${name}_${calcGender}`; 
+      const cachedData = powerCache[cacheKey];
+
+      let power = null;
+      let isFromCache = false;
+
+      // 檢查快取是否匹配 (體重與年齡誤差在 5% 以內)
+      if (cachedData) {
+        const weightDiff = Math.abs(calcWeight - cachedData.weight) / cachedData.weight;
+        const ageDiff = Math.abs(calcAge - cachedData.age) / cachedData.age;
+        if (weightDiff <= 0.05 && ageDiff <= 0.05) {
+          power = cachedData.power;
+          isFromCache = true;
+        }
+      }
+
+      if (isFromCache) {
+        // 若命中快取，模擬 AI 思考的延遲感 (隨機 800ms ~ 1800ms)
+        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
+      } else {
+        // 呼叫 API 取得每分鐘消耗功率
+        const result = await estimateExercisePower(name, calcWeight, calcHeight, calcAge, calcGender);
+        const numMatch = result.match(/[\d.]+/);
+        if (numMatch) {
+          power = parseFloat(numMatch[0]);
+          // 寫入快取
+          powerCache[cacheKey] = {
+            weight: calcWeight,
+            age: calcAge,
+            power: power,
+            updatedAt: Date.now()
+          };
+          safeStorage.set('wt_ex_power_cache', powerCache);
+        }
+      }
+
+      if (power !== null) {
+        // 利用功率 * 時間算出總熱量
+        const totalCals = Math.round(power * durNum);
+        setExpr(String(totalCals));
+      }
+    } catch (e) {
+      console.error("AI Estimation failed:", e);
+    }
+    setIsEstimating(false);
+  };
+
+  // 計算機按鍵邏輯
+  const handlePress = (val) => {
+    if (val === 'C') { setExpr(''); return; }
+    if (val === 'DEL') { setExpr(prev => prev.slice(0, -1)); return; }
+    if (val === '=') {
+      try {
+        // eslint-disable-next-line no-new-func
+        const result = new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)();
+        if(!isNaN(result) && isFinite(result)) setExpr(String(Math.round(result * 100) / 100)); 
+      } catch (e) { setExpr('Error'); setTimeout(() => setExpr(''), 1000); }
+      return;
+    }
+    if (expr === 'Error') { setExpr(val); return; }
+    setExpr(prev => prev + val);
+  };
+
+  const handleConfirm = () => {
+    let finalVal = expr;
+    if (/[+×÷\-]/.test(expr)) {
+      try {
+        // eslint-disable-next-line no-new-func
+        finalVal = String(new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)());
+      } catch(e) { return; }
+    }
+    if (finalVal || finalVal === '') {
+      const dataToSave = (isDiet) 
+        ? { content: name, calories: finalVal, image } 
+        : (isEx) 
+          ? { type: name, calories: finalVal, duration, image } 
+          : { value: finalVal };
+      onSave(dataToSave);
+    }
+  };
+
+  const btns = [
+    { label: 'C', col: 1 }, { label: 'DEL', col: 1 }, { label: '÷', col: 1 }, { label: '×', col: 1 },
+    { label: '7', col: 1 }, { label: '8', col: 1 }, { label: '9', col: 1 }, { label: '-', col: 1 },
+    { label: '4', col: 1 }, { label: '5', col: 1 }, { label: '6', col: 1 }, { label: '+', col: 1 },
+    { label: '1', col: 1 }, { label: '2', col: 1 }, { label: '3', col: 1 }, { label: '=', col: 1, row: 2, isEq: true },
+    { label: '0', col: 2 }, { label: '.', col: 1 }
+  ];
+
+  const displayStr = expr || "0";
+  const getFontSize = (text) => {
+    const len = text.length;
+    if (isLarge) {
+      if (len <= 7) return 'clamp(2rem, 10vw, 3rem)';
+      if (len <= 10) return 'clamp(1.5rem, 8vw, 2.25rem)';
+      if (len <= 14) return 'clamp(1.2rem, 6vw, 1.875rem)';
+      return 'clamp(1rem, 5vw, 1.5rem)';
+    } else {
+      if (len <= 7) return 'clamp(1.75rem, 8vw, 2.25rem)';
+      if (len <= 10) return 'clamp(1.5rem, 6vw, 1.875rem)';
+      if (len <= 14) return 'clamp(1.25rem, 5vw, 1.5rem)';
+      return '1.125rem';
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 照片上傳區塊 (飲食/運動適用) */}
+      {(isDiet || isEx) && (
+        <div className="w-full relative bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl overflow-hidden min-h-[120px] flex items-center justify-center">
+          <input 
+            type="file" 
+            accept="image/*" 
+            ref={fileInputRef} 
+            onChange={handleImageUpload} 
+            className="hidden" 
+          />
+          {image ? (
+            <>
+              <img src={image} alt="uploaded preview" className="w-full h-40 object-cover" />
+              <button 
+                onClick={() => setImage(null)} 
+                className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="flex flex-col items-center justify-center w-full py-8 text-[#A89F91] dark:text-[#888888] hover:text-[#8C8477] dark:hover:text-[#A1988B] transition-colors"
+            >
+              <Camera className="w-8 h-8 mb-2 stroke-[1.5]" />
+              <span className={`${s('text-[11px]', 'text-[13px] font-medium')} tracking-widest`}>點擊新增照片紀錄</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 項目名稱與持續時間 (運動) */}
+      {(isDiet || isEx) && (
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>
+              項目名稱
+            </label>
+            <input 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              placeholder="輸入名稱" 
+              className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} 
+            />
+          </div>
+          {isEx && (
+            <div>
+              <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>
+                持續時間 (分鐘, 選填)
+              </label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  value={duration} 
+                  onChange={e => setDuration(e.target.value)} 
+                  placeholder="例如: 30" 
+                  className={`w-full ${s('p-3.5 pl-10 text-sm', 'p-3 pl-10 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} 
+                />
+                <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A89F91] dark:text-[#888888] stroke-[1.5]" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 顯示計算結果框與 AI 估算按鈕 */}
+      <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all relative`}>
+        
+        {/* 左上角的標題及AI估算按鈕佈局 */}
+        <div className="absolute top-3 left-4 flex flex-col items-start gap-2">
+          <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-[12px]')} tracking-widest font-medium shrink-0`}>{title}</p>
+          
+          {isDiet && (image || name) && (
+            <div className="flex flex-col items-start gap-1">
+              <button 
+                onClick={() => {
+                  if (image) handleEstimateDietImage();
+                  else setShowFullnessOptions(prev => !prev);
+                }}
+                disabled={isEstimating}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white text-[10px] sm:text-[11px] font-medium tracking-wider transition-all
+                  ${isEstimating ? 'bg-[#C2BCB6] cursor-not-allowed' : 'bg-gradient-to-r from-[#9AA899] to-[#8C8477] active:scale-95 shadow-sm'}`}
+              >
+                {isEstimating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {isEstimating ? '品嚐中...' : '估算攝取熱量'}
+              </button>
+
+              {showFullnessOptions && !image && !isEstimating && (
+                <div className="flex items-center gap-1.5 mt-0.5 animate-in slide-in-from-top-1">
+                  {['沒吃飽', '剛剛好', '好飽'].map(lvl => (
+                    <button
+                      key={lvl}
+                      onClick={() => handleEstimateDietText(lvl)}
+                      className="px-2 py-1 text-[10px] bg-white dark:bg-[#1E1E1E] text-[#8C8477] dark:text-[#A1988B] rounded-md border border-[#E8E4DF] dark:border-[#3A3A3A] hover:bg-[#F9F8F6] dark:hover:bg-[#2A2A2A] active:scale-95 transition-all shadow-sm tracking-wider font-medium"
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isEx && (
+            <button 
+              onClick={handleEstimateExercise}
+              disabled={isEstimating || !name || !duration}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white text-[10px] sm:text-[11px] font-medium tracking-wider transition-all
+                ${(isEstimating || !name || !duration) ? 'bg-[#C2BCB6] dark:bg-[#4A4A4A] cursor-not-allowed' : 'bg-gradient-to-r from-[#C4A495] to-[#B57C76] active:scale-95 shadow-sm'}`}
+            >
+              {isEstimating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {isEstimating ? '運動中...' : '估算消耗熱量'}
+            </button>
+          )}
+        </div>
+
+        <p 
+          className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1 min-w-0 ${isDiet || isEx ? 'mt-8' : ''}`} 
+          style={{ fontSize: getFontSize(displayStr) }}
+        >
+          {displayStr}
+        </p>
+      </div>
+
+      {/* 數字鍵盤 */}
+      <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2.5')}`}>
+        {btns.map(btn => (
+          <button key={btn.label} type="button" onClick={() => handlePress(btn.label)}
+            className={`${s('h-12 text-xl', 'h-14 text-2xl')} rounded-2xl font-light flex items-center justify-center transition-colors active:scale-95
+              ${btn.col === 2 ? 'col-span-2' : 'col-span-1'}
+              ${btn.row === 2 ? 'row-span-2' : 'row-span-1'}
+              ${btn.isEq ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212]' : 
+                ['÷','×','-','+'].includes(btn.label) ? 'bg-[#EFECE7] dark:bg-[#333333] text-[#8C8477] dark:text-[#A1988B]' : 
+                ['C','DEL'].includes(btn.label) ? 'bg-[#F7EFEA] dark:bg-[#2D2520] text-[#C4A495] dark:text-[#C4A495]' : 
+                'bg-white dark:bg-[#1E1E1E] border border-[#F0ECE7] dark:border-[#333333] text-[#5C5C5C] dark:text-[#D1D1D1]'}`}
+          >
+            {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : btn.label}
+          </button>
+        ))}
+        <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-[16px]')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
+          儲存紀錄
+        </button>
+      </div>
+
+      {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-1 font-light', 'text-[11px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
+    </div>
+  );
+};
+
 
 // --- 儀表板小月曆元件 ---
 function DashboardDatePicker({ initialDate, onSelect, isLarge }) {
@@ -218,6 +699,7 @@ function DashboardDatePicker({ initialDate, onSelect, isLarge }) {
   );
 }
 
+// --- 主要應用程式 ---
 export default function App() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home');
@@ -232,10 +714,16 @@ export default function App() {
   const [profile, setProfile] = useState(() => safeStorage.get('wt_profile')?.data || DEFAULT_PROFILE);
   const [records, setRecords] = useState(() => safeStorage.get('wt_records') || {});
   
-  // 設定頁面的本地暫存
   const [draftProfile, setDraftProfile] = useState(null);
   const activeProfile = draftProfile || profile;
   const isProfileDirty = draftProfile !== null;
+
+  // 控制設定按鈕的紅點提示
+  const [showSettingsDot, setShowSettingsDot] = useState(() => {
+    const hasViewed = safeStorage.get('wt_settings_viewed');
+    const isMissingData = !profile.birthYear || !profile.height;
+    return !hasViewed && isMissingData;
+  });
 
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
@@ -255,7 +743,6 @@ export default function App() {
       } else if (themeMode === 'light') {
         isDarkTheme = false;
       } else {
-        // 跟隨系統設定
         isDarkTheme = mediaQuery.matches;
       }
       setIsDark(isDarkTheme);
@@ -271,7 +758,6 @@ export default function App() {
     
     checkTheme();
     
-    // 監聽系統主題變更
     const handleThemeChange = () => {
       if (themeMode === 'auto') checkTheme();
     };
@@ -499,6 +985,10 @@ export default function App() {
   };
 
   const handleTabClick = (tab) => {
+    if (tab === 'settings') {
+      setShowSettingsDot(false);
+      safeStorage.set('wt_settings_viewed', true);
+    }
     if (activeTab === 'settings' && isProfileDirty && tab !== 'settings') {
       setModalState({ view: 'confirm_leave', pendingTab: tab });
     } else {
@@ -608,114 +1098,30 @@ export default function App() {
   }
 
   let tdee = 0;
-  if (activeProfile.height && activeProfile.age) {
-    if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
-      tdee = Number(activeProfile.customTDEE);
-    } else {
-      let bmr = 10 * Number(latestWeight || 60) + 6.25 * Number(activeProfile.height) - 5 * Number(activeProfile.age);
-      bmr += (activeProfile.gender === 'male' ? 5 : -161);
-      let weekEx = 0;
-      for (let i = 1; i <= 7; i++) {
-        const pastObj = new Date(targetDObj);
-        pastObj.setDate(pastObj.getDate() - i);
-        const dStr = getDateString(pastObj);
-        getArrayData(records[dStr] || {}, 'exercise').forEach(ex => {
-          weekEx += (Number(ex.calories ?? ex.value) || 0);
-        });
-      }
-      tdee = Math.round((bmr * 1.2) + (weekEx / 7));
+  // 缺漏資料時的計算基礎設定
+  const calcAge = activeProfile.birthYear ? new Date().getFullYear() - Number(activeProfile.birthYear) : 25;
+  const calcHeight = activeProfile.height ? Number(activeProfile.height) : 160;
+  const calcWeight = latestWeight ? Number(latestWeight) : 60;
+  const calcGender = activeProfile.gender || 'female';
+
+  if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
+    tdee = Number(activeProfile.customTDEE);
+    tdee = Math.max(800, Math.min(6000, tdee)); // 合理範圍限制
+  } else {
+    let bmr = 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge;
+    bmr += (calcGender === 'male' ? 5 : -161);
+    let weekEx = 0;
+    for (let i = 1; i <= 7; i++) {
+      const pastObj = new Date(targetDObj);
+      pastObj.setDate(pastObj.getDate() - i);
+      const dStr = getDateString(pastObj);
+      getArrayData(records[dStr] || {}, 'exercise').forEach(ex => {
+        weekEx += (Number(ex.calories ?? ex.value) || 0);
+      });
     }
+    tdee = Math.round((bmr * 1.2) + (weekEx / 7));
+    tdee = Math.max(800, Math.min(6000, tdee)); // 合理範圍限制
   }
-
-  // --- 計算機 ---
-  const Calculator = ({ onSave, title, placeholder, initialValue = "", isLarge }) => {
-    const s = (n, l) => isLarge ? l : n;
-    const [expr, setExpr] = useState(initialValue);
-    
-    const handlePress = (val) => {
-      if (val === 'C') { setExpr(''); return; }
-      if (val === 'DEL') { setExpr(prev => prev.slice(0, -1)); return; }
-      if (val === '=') {
-        try {
-          // eslint-disable-next-line no-new-func
-          const result = new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)();
-          if(!isNaN(result) && isFinite(result)) {
-            setExpr(String(Math.round(result * 100) / 100)); 
-          }
-        } catch (e) { setExpr('Error'); setTimeout(() => setExpr(''), 1000); }
-        return;
-      }
-      if (expr === 'Error') { setExpr(val); return; }
-      setExpr(prev => prev + val);
-    };
-
-    const handleConfirm = () => {
-      let finalVal = expr;
-      if (/[+×÷\-]/.test(expr)) {
-        try {
-          // eslint-disable-next-line no-new-func
-          finalVal = String(new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)());
-        } catch(e) { return; }
-      }
-      if (finalVal || finalVal === '') onSave(finalVal);
-    };
-
-    const btns = [
-      { label: 'C', col: 1 }, { label: 'DEL', col: 1 }, { label: '÷', col: 1 }, { label: '×', col: 1 },
-      { label: '7', col: 1 }, { label: '8', col: 1 }, { label: '9', col: 1 }, { label: '-', col: 1 },
-      { label: '4', col: 1 }, { label: '5', col: 1 }, { label: '6', col: 1 }, { label: '+', col: 1 },
-      { label: '1', col: 1 }, { label: '2', col: 1 }, { label: '3', col: 1 }, { label: '=', col: 1, row: 2, isEq: true },
-      { label: '0', col: 2 }, { label: '.', col: 1 }
-    ];
-
-    const displayStr = expr || placeholder;
-    const getFontSize = (text) => {
-      const len = text.length;
-      if (isLarge) {
-        if (len <= 7) return 'clamp(2rem, 10vw, 3rem)';
-        if (len <= 10) return 'clamp(1.5rem, 8vw, 2.25rem)';
-        if (len <= 14) return 'clamp(1.2rem, 6vw, 1.875rem)';
-        return 'clamp(1rem, 5vw, 1.5rem)';
-      } else {
-        if (len <= 7) return 'clamp(1.75rem, 8vw, 2.25rem)';
-        if (len <= 10) return 'clamp(1.5rem, 6vw, 1.875rem)';
-        if (len <= 14) return 'clamp(1.25rem, 5vw, 1.5rem)';
-        return '1.125rem';
-      }
-    };
-
-    return (
-      <div className="flex flex-col gap-3">
-        <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all`}>
-          <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-[12px]')} tracking-widest font-medium mb-1 shrink-0`}>{title}</p>
-          <p 
-            className="font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1 min-w-0" 
-            style={{ fontSize: getFontSize(displayStr) }}
-          >
-            {displayStr}
-          </p>
-        </div>
-        <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2.5')}`}>
-          {btns.map(btn => (
-            <button key={btn.label} type="button" onClick={() => handlePress(btn.label)}
-              className={`${s('h-12 text-xl', 'h-14 text-2xl')} rounded-2xl font-light flex items-center justify-center transition-colors active:scale-95
-                ${btn.col === 2 ? 'col-span-2' : 'col-span-1'}
-                ${btn.row === 2 ? 'row-span-2' : 'row-span-1'}
-                ${btn.isEq ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212]' : 
-                  ['÷','×','-','+'].includes(btn.label) ? 'bg-[#EFECE7] dark:bg-[#333333] text-[#8C8477] dark:text-[#A1988B]' : 
-                  ['C','DEL'].includes(btn.label) ? 'bg-[#F7EFEA] dark:bg-[#2D2520] text-[#C4A495] dark:text-[#C4A495]' : 
-                  'bg-white dark:bg-[#1E1E1E] border border-[#F0ECE7] dark:border-[#333333] text-[#5C5C5C] dark:text-[#D1D1D1]'}`}
-            >
-              {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : btn.label}
-            </button>
-          ))}
-          <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-[16px]')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
-            儲存紀錄
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const renderHome = () => (
     <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
@@ -795,7 +1201,7 @@ export default function App() {
             </div>
             <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><X className={`${s('w-4 h-4', 'w-5 h-5')}`} /></button>
           </div>
-          <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2">
+          <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2 pb-6">
             {children}
           </div>
         </div>
@@ -883,30 +1289,18 @@ export default function App() {
     }
 
     if (view === 'calc') {
-      let title = '';
-      if (category === 'weight') title = '體重 (kg)';
-      else if (category === 'water') title = '飲水量 (ml)';
-      else if (isDiet) title = `熱量 (kcal)`;
-      else if (isEx) title = `消耗 (kcal)`;
-
-      const initial = (category === 'weight' || category === 'water') 
-        ? String(item?.value || '') 
-        : String(item?.calories ?? item?.value ?? '');
-
       return (
         <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
-          {(isDiet || isEx) && (
-            <div className={s('mb-4', 'mb-4')}>
-              <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-2 block`}>項目名稱</label>
-              <input id="editNameInput" defaultValue={item?.content || item?.type || ''} placeholder="輸入名稱" className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
-            </div>
-          )}
-          <Calculator title={title} placeholder="0" initialValue={initial} isLarge={isLarge} onSave={(val) => {
-            const nameVal = document.getElementById('editNameInput')?.value || item?.content || item?.type;
-            const dataToSave = (isDiet) ? { content: nameVal, calories: val } : (isEx) ? { type: nameVal, calories: val } : { value: val };
-            handleSaveData(category, dataToSave);
-          }} />
-          {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-4 font-light', 'text-[11px] mt-4 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
+          <RecordEditor 
+            category={category}
+            item={item}
+            isDiet={isDiet}
+            isEx={isEx}
+            isLarge={isLarge}
+            latestWeight={latestWeight}
+            onSave={(dataToSave) => handleSaveData(category, dataToSave)}
+            profile={activeProfile}
+          />
         </ModalLayout>
       );
     }
@@ -982,7 +1376,7 @@ export default function App() {
         <NavButton active={activeTab === 'home'} onClick={() => handleTabClick('home')} icon={Home} label="首頁" isLarge={isLarge} />
         <NavButton active={activeTab === 'calendar'} onClick={() => handleTabClick('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
         <NavButton active={activeTab === 'trend'} onClick={() => handleTabClick('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
-        <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} />
+        <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} hasDot={showSettingsDot} />
       </nav>
 
       {renderModals()}
@@ -991,10 +1385,11 @@ export default function App() {
 }
 
 // 底部按鈕
-function NavButton({ active, onClick, icon: Icon, label, isLarge }) {
+function NavButton({ active, onClick, icon: Icon, label, isLarge, hasDot }) {
   const s = (n, l) => isLarge ? l : n;
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1 p-2 w-[70px]')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
+    <button onClick={onClick} className={`relative flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1 p-2 w-[70px]')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
+      {hasDot && <div className={`absolute ${s('top-1.5 right-3', 'top-1.5 right-4')} w-[9px] h-[9px] bg-[#B86C65] rounded-full border-[1.5px] border-[#F7F5F2] dark:border-[#121212] z-10 animate-pulse`} />}
       <Icon className={`${s('w-[18px] h-[18px]', 'w-6 h-6')} ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
       <span className={`${s('text-[9px] font-medium', 'text-[11px] font-bold')} tracking-widest m-0`}>{label}</span>
       <div className={`${s('w-1 h-1 mt-0.5', 'w-1.5 h-1.5 mt-1')} rounded-full bg-[#8C8477] dark:bg-[#A1988B] transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`} />
@@ -1316,8 +1711,8 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
             </div>
           </div>
           <div className={s('space-y-2', 'space-y-2')}>
-            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>AGE</label>
-            <input type="number" value={profile.age || ''} onChange={(e) => onChangeSetting({ age: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
+            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>出生年份</label>
+            <input type="number" placeholder="例如: 1990" value={profile.birthYear || ''} onChange={(e) => onChangeSetting({ birthYear: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
           </div>
         </div>
         <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
