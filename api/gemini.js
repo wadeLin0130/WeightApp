@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   }
 
   // 3. 組合要發送給 Google 的真實 URL
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   try {
     // 4. 將前端傳來的資料 (req.body) 轉發給 Google 伺服器
