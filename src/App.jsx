@@ -15,6 +15,8 @@ import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, 
 import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, getDocs } from 'firebase/firestore';
 
 // 在 Canvas 預覽環境中會自動注入 __firebase_config
+// 注意：為了避免預覽環境報錯，使用空字串代替 import.meta.env
+// 當您下載到本地端 Vite 專案時，您可以將此處替換為對應的環境變數。
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : {
@@ -686,10 +688,91 @@ export default function App() {
 
   const unsubRecordsRef = useRef(null);
   const unsubProfileRef = useRef(null);
+  const homeSwipeRef = useRef(null);
 
   const isLarge = activeProfile.visualFriendly || false;
   const themeMode = activeProfile.themeMode || 'auto';
   const s = (normal, large) => isLarge ? large : normal;
+
+  // --- 首頁左右滑動切換日期邏輯 ---
+  useEffect(() => {
+    const el = homeSwipeRef.current;
+    if (!el || activeTab !== 'home') return;
+
+    let startX = 0, startY = 0;
+    let lock = null;
+    let dx = 0;
+
+    const onTouchStart = (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      lock = null;
+      dx = 0;
+      el.style.transition = 'none';
+    };
+
+    const onTouchMove = (e) => {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      dx = currentX - startX;
+      const dy = currentY - startY;
+
+      if (!lock) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5) lock = 'horizontal';
+        else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) lock = 'vertical';
+      }
+
+      if (lock === 'horizontal') {
+        if (e.cancelable) e.preventDefault();
+        el.style.transform = `translateX(calc(-40% + ${dx}px))`;
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (lock === 'horizontal') {
+        el.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        if (dx > 60) {
+          // 右滑：切換到前一天 (顯示左方面版，也就是偏移量 1 的位置)
+          el.style.transform = `translateX(-20%)`;
+          setTimeout(() => {
+            el.style.transition = 'none';
+            el.style.transform = `translateX(-40%)`;
+            setTargetDate(prev => {
+              const d = new Date(prev);
+              d.setDate(d.getDate() - 1);
+              return getDateString(d);
+            });
+          }, 300);
+        } else if (dx < -60) {
+          // 左滑：切換到下一天 (顯示右方面版，也就是偏移量 3 的位置)
+          el.style.transform = `translateX(-60%)`;
+          setTimeout(() => {
+            el.style.transition = 'none';
+            el.style.transform = `translateX(-40%)`;
+            setTargetDate(prev => {
+              const d = new Date(prev);
+              d.setDate(d.getDate() + 1);
+              return getDateString(d);
+            });
+          }, 300);
+        } else {
+          el.style.transform = `translateX(-40%)`;
+        }
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [activeTab]);
 
   // --- 夜間模式與時間監聽邏輯 ---
   useEffect(() => {
@@ -999,50 +1082,72 @@ export default function App() {
     }
   }
 
-  const totalWater = arrWater.reduce((sum, i) => sum + Number(i.value), 0);
-  const totalIntake = arrDiet.reduce((sum, d) => sum + (Number(d.calories ?? d.value) || 0), 0);
-  const totalExCals = arrEx.reduce((sum, ex) => sum + (Number(ex.calories ?? ex.value) || 0), 0);
+  const renderDashboardPanel = (dateStr) => {
+    const panelData = records[dateStr] || {};
+    const pArrWeight = getArrayData(panelData, 'weight');
+    const pArrWater = getArrayData(panelData, 'water');
+    const pArrDiet = getArrayData(panelData, 'diet');
+    const pArrEx = getArrayData(panelData, 'exercise');
 
-  let weightChange = null;
-  let prevWeight = null;
-  const targetDObj = new Date(targetDate);
-  for(let i = 1; i <= 7; i++) {
-    const pastObj = new Date(targetDObj);
-    pastObj.setDate(pastObj.getDate() - i);
-    const prevArr = getArrayData(records[getDateString(pastObj)] || {}, 'weight');
-    if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
-  }
-  if (latestWeight && prevWeight) { weightChange = (latestWeight - prevWeight).toFixed(2); }
+    let pLatestWeight = null;
+    if (pArrWeight.length > 0) {
+      pLatestWeight = pArrWeight[pArrWeight.length - 1].value;
+    } else {
+      const sortedDates = Object.keys(records).sort((a, b) => b.localeCompare(a));
+      for (let d of sortedDates) {
+        if (d < dateStr) {
+          const wArr = getArrayData(records[d], 'weight');
+          if (wArr.length > 0) {
+            pLatestWeight = wArr[wArr.length - 1].value;
+            break;
+          }
+        }
+      }
+    }
 
-  let tdee = 0;
-  let bmr = 0;
-  const calcAge = activeProfile.birthYear ? new Date().getFullYear() - Number(activeProfile.birthYear) : 25;
-  const calcHeight = activeProfile.height ? Number(activeProfile.height) : 160;
-  const calcWeight = latestWeight ? Number(latestWeight) : 60;
-  const calcGender = activeProfile.gender || 'female';
+    const totalWater = pArrWater.reduce((sum, i) => sum + Number(i.value), 0);
+    const totalIntake = pArrDiet.reduce((sum, d) => sum + (Number(d.calories ?? d.value) || 0), 0);
+    const totalExCals = pArrEx.reduce((sum, ex) => sum + (Number(ex.calories ?? ex.value) || 0), 0);
 
-  let rawBmr = 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge;
-  rawBmr += (calcGender === 'male' ? 5 : -161);
-  bmr = Math.max(500, Math.round(rawBmr)); // 提供合理底限
-
-  if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
-    tdee = Number(activeProfile.customTDEE);
-    tdee = Math.max(800, Math.min(6000, tdee));
-  } else {
-    let weekEx = 0;
-    for (let i = 1; i <= 7; i++) {
+    let weightChange = null;
+    let prevWeight = null;
+    const targetDObj = new Date(dateStr);
+    for(let i = 1; i <= 7; i++) {
       const pastObj = new Date(targetDObj);
       pastObj.setDate(pastObj.getDate() - i);
-      const dStr = getDateString(pastObj);
-      getArrayData(records[dStr] || {}, 'exercise').forEach(ex => {
-        weekEx += (Number(ex.calories ?? ex.value) || 0);
-      });
+      const prevArr = getArrayData(records[getDateString(pastObj)] || {}, 'weight');
+      if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
     }
-    tdee = Math.round((bmr * 1.2) + (weekEx / 7));
-    tdee = Math.max(800, Math.min(6000, tdee));
-  }
+    if (pLatestWeight && prevWeight) { weightChange = (pLatestWeight - prevWeight).toFixed(2); }
 
-  const renderHome = () => {
+    let tdee = 0;
+    let bmr = 0;
+    const calcAge = activeProfile.birthYear ? new Date().getFullYear() - Number(activeProfile.birthYear) : 25;
+    const calcHeight = activeProfile.height ? Number(activeProfile.height) : 160;
+    const calcWeight = pLatestWeight ? Number(pLatestWeight) : 60;
+    const calcGender = activeProfile.gender || 'female';
+
+    let rawBmr = 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge;
+    rawBmr += (calcGender === 'male' ? 5 : -161);
+    bmr = Math.max(500, Math.round(rawBmr)); 
+
+    if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
+      tdee = Number(activeProfile.customTDEE);
+      tdee = Math.max(800, Math.min(6000, tdee));
+    } else {
+      let weekEx = 0;
+      for (let i = 1; i <= 7; i++) {
+        const pastObj = new Date(targetDObj);
+        pastObj.setDate(pastObj.getDate() - i);
+        const dStr = getDateString(pastObj);
+        getArrayData(records[dStr] || {}, 'exercise').forEach(ex => {
+          weekEx += (Number(ex.calories ?? ex.value) || 0);
+        });
+      }
+      tdee = Math.round((bmr * 1.2) + (weekEx / 7));
+      tdee = Math.max(800, Math.min(6000, tdee));
+    }
+
     const tdeeTitle = activeProfile.showTDEE !== false ? ' / TDEE' : '';
     const bmrTitle = activeProfile.showBMR === true ? ' / BMR' : '';
     const titlesStr = `INTAKE${tdeeTitle}${bmrTitle}`;
@@ -1051,25 +1156,13 @@ export default function App() {
     const valBmr = activeProfile.showBMR === true ? ` / ${bmr}` : '';
 
     return (
-      <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
-        <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
-          <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-[16px] font-bold gap-3')}`}>
-            <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A] shrink-0`}>
-              <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
-            </div>
-            {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
-          </button>
-          {targetDate !== todayStr && (
-            <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-[13px] px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium shrink-0`}>回今日</button>
-          )}
-        </div>
-
+      <div key={dateStr} className="w-1/5 shrink-0 px-6 flex flex-col gap-4">
         <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
           <div className="relative z-10 flex justify-between items-start">
             <div className="min-w-0">
               <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
               <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
-                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{latestWeight || '--'}</span>
+                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{pLatestWeight || '--'}</span>
                 <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
               </div>
               {weightChange && (
@@ -1090,12 +1183,12 @@ export default function App() {
 
         <div className={`grid grid-cols-2 ${s('gap-3', 'gap-3')}`}>
           {[
-            { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
+            { id: 'weight', title: '體重', icon: WeightScaleIcon, val: pArrWeight.length ? `已記 ${pArrWeight[pArrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
             { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
-            { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
-            { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
+            { id: 'diet', title: '飲食', icon: Utensils, val: pArrDiet.length ? `已記 ${pArrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
+            { id: 'exercise', title: '運動', icon: Flame, val: pArrEx.length ? `已記 ${pArrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
           ].map(card => (
-            <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-4 gap-3', 'p-4 sm:p-5 gap-3')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)] min-w-0`}>
+            <button key={card.id} onClick={() => openCategoryFlow(card.id, dateStr)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-4 gap-3', 'p-4 sm:p-5 gap-3')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)] min-w-0`}>
               <div className={`${s('w-9 h-9', 'w-11 h-11')} rounded-2xl ${card.bg} flex items-center justify-center shrink-0`}>
                 <card.icon className={`${s('w-4 h-4', 'w-6 h-6')} ${card.color} stroke-[1.5]`} />
               </div>
@@ -1105,6 +1198,38 @@ export default function App() {
               </div>
             </button>
           ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderHome = () => {
+    const datesToRender = [-2, -1, 0, 1, 2].map(offset => {
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() + offset);
+      return getDateString(d);
+    });
+
+    return (
+      <div className={`pt-6 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')} flex flex-col min-h-full overflow-hidden`}>
+        <div className="px-6 mb-4 shrink-0">
+          <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#3A3A3A] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+            <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-[16px] font-bold gap-3')}`}>
+              <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A] shrink-0`}>
+                <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
+              </div>
+              {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
+            </button>
+            {targetDate !== todayStr && (
+              <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-[13px] px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium shrink-0`}>回今日</button>
+            )}
+          </div>
+        </div>
+
+        <div className="w-full relative flex-1">
+          <div ref={homeSwipeRef} className="flex w-[500%] will-change-transform touch-pan-y" style={{ transform: 'translateX(-40%)' }}>
+            {datesToRender.map(dateStr => renderDashboardPanel(dateStr))}
+          </div>
         </div>
       </div>
     );
@@ -1281,7 +1406,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto relative custom-scrollbar">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar">
         {activeTab === 'home' && renderHome()}
         {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} isLarge={isLarge} />}
         {activeTab === 'trend' && <TrendChart records={records} isLarge={isLarge} />}
