@@ -5,7 +5,8 @@ import {
   Cloud, CloudOff, ShieldCheck, Activity, Dumbbell, Coffee, Apple, Pizza, Carrot, 
   Fish, Beef, Bike, Zap, HeartPulse, Delete, Trash2,
   Music, Sun, Moon, Star, Heart, Target, RefreshCw, Moon as MoonIcon,
-  Camera, Sparkles, Clock, Loader2, Image as ImageIcon
+  Camera, Sparkles, Clock, Loader2, Image as ImageIcon,
+  CornerDownLeft
 } from 'lucide-react';
 
 // --- Firebase 初始化 ---
@@ -14,8 +15,6 @@ import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, 
 import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc, getDocs } from 'firebase/firestore';
 
 // 在 Canvas 預覽環境中會自動注入 __firebase_config
-// 注意：在此編輯器中因編譯器限制無法直接使用 import.meta 語法。
-// 當您下載到本地端 Vite 專案時，請將下方引號內的佔位字串替換為對應的 import.meta.env.VITE_... 變數
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : {
@@ -34,10 +33,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : (firebaseConfig.appId
 
 // --- Gemini API 封裝 (安全版) ---
 const fetchGemini = async (payload) => {
-  // 【重要修改】: 這裡不再直接呼叫 Google，而是呼叫你的 Vercel 後端 API
-  // 你的 API 金鑰安全地存放在 Vercel 伺服器上，不會暴露給瀏覽器
   const url = `/api/gemini`;
-  
   let retries = 5;
   let delay = 1000;
   while (retries > 0) {
@@ -60,7 +56,7 @@ const fetchGemini = async (payload) => {
 };
 
 const estimateDietCalories = async (base64Str) => {
-  const b64Data = base64Str.split(',')[1]; // 移除 data:image/jpeg;base64, 前綴
+  const b64Data = base64Str.split(',')[1];
   const payload = {
     contents: [{
       role: "user",
@@ -110,6 +106,7 @@ const safeStorage = {
 const DEFAULT_PROFILE = {
   height: '', birthYear: '', gender: 'female', customTDEE: '', 
   visualFriendly: false, themeMode: 'auto',
+  showTDEE: true, showBMR: false,
   dietCards: [
     { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bf', name: '早餐', icon: 'Coffee' },
     { id: 'lc', name: '午餐', icon: 'Utensils' }, { id: 'dn', name: '晚餐', icon: 'Utensils' },
@@ -159,7 +156,6 @@ const getArrayData = (data, key) => {
   return [];
 };
 
-// --- 圖片壓縮函數 (Canvas) ---
 const compressImage = (file) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -183,13 +179,12 @@ const compressImage = (file) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7)); // 壓縮為 JPEG
+        resolve(canvas.toDataURL('image/jpeg', 0.7)); 
       };
     };
   });
 };
 
-// --- 左滑刪除元件 ---
 const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, isLarge }) => {
   const s = (n, l) => isLarge ? l : n;
   const [offsetX, setOffsetX] = useState(0);
@@ -199,10 +194,7 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
   const maxOffset = isLarge ? -85 : -80;
   const triggerOffset = isLarge ? -40 : -40;
 
-  const handleTouchStart = (e) => {
-    startXRef.current = e.touches[0].clientX;
-  };
-  
+  const handleTouchStart = (e) => { startXRef.current = e.touches[0].clientX; };
   const handleTouchMove = (e) => {
     const deltaX = e.touches[0].clientX - startXRef.current;
     if (deltaX < 0) {
@@ -213,7 +205,6 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
       setOffsetX(currentXRef.current);
     }
   };
-  
   const handleTouchEnd = () => {
     if (currentXRef.current < triggerOffset) {
       setOffsetX(maxOffset);
@@ -258,14 +249,11 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
             )}
           </div>
         </div>
-        
-        {/* 縮圖顯示區塊 */}
         {hasImage && (
           <div className="ml-2 shrink-0">
             <img src={record.image} alt="紀錄縮圖" className={`${s('w-10 h-10', 'w-12 h-12')} object-cover rounded-lg border border-[#E8E4DF] dark:border-[#4A4A4A]`} />
           </div>
         )}
-        
         <div className="flex items-baseline gap-1 pointer-events-none shrink-0 pl-2">
           <span className={`${s('text-sm', 'text-lg')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
           {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-[11px]')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
@@ -275,27 +263,28 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
   );
 };
 
-// --- 紀錄編輯/計算機整合元件 ---
+// --- 紀錄編輯元件 ---
 const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onSave, profile }) => {
   const s = (n, l) => isLarge ? l : n;
   
-  // 狀態管理
   const [name, setName] = useState(item?.content || item?.type || '');
   const [duration, setDuration] = useState(item?.duration || '');
   const [image, setImage] = useState(item?.image || null);
-  const [expr, setExpr] = useState(String((category === 'weight' || category === 'water') ? (item?.value || '') : (item?.calories ?? item?.value ?? '')));
+  const [finalValue, setFinalValue] = useState(String((category === 'weight' || category === 'water') ? (item?.value || '') : (item?.calories ?? item?.value ?? '')));
+  
+  const [showCalc, setShowCalc] = useState(false);
+  const [expr, setExpr] = useState(finalValue);
+  
   const [isEstimating, setIsEstimating] = useState(false);
   const [showFullnessOptions, setShowFullnessOptions] = useState(false);
   const fileInputRef = useRef(null);
 
-  // 標題與單位
   let title = '';
   if (category === 'weight') title = '體重 (kg)';
   else if (category === 'water') title = '飲水量 (ml)';
   else if (isDiet) title = `熱量 (kcal)`;
   else if (isEx) title = `消耗 (kcal)`;
 
-  // 照片上傳處理
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -303,21 +292,19 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
     setImage(compressedImage);
   };
 
-  // AI 估算飲食熱量 (圖片)
   const handleEstimateDietImage = async () => {
     if (!image) return;
     setIsEstimating(true);
     try {
       const result = await estimateDietCalories(image);
       const numMatch = result.match(/\d+/);
-      if (numMatch) setExpr(String(parseInt(numMatch[0])));
+      if (numMatch) setFinalValue(String(parseInt(numMatch[0])));
     } catch (e) {
       console.error("AI Estimation failed:", e);
     }
     setIsEstimating(false);
   };
 
-  // AI 估算飲食熱量 (文字 + 飽足感快取機制)
   const handleEstimateDietText = async (fullness) => {
     setShowFullnessOptions(false);
     if (!name) return;
@@ -335,7 +322,6 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
       let cals = null;
       let isFromCache = false;
 
-      // 檢查快取匹配 (體重與年齡誤差 5% 內)
       if (cachedData) {
         const weightDiff = Math.abs(calcWeight - cachedData.weight) / cachedData.weight;
         const ageDiff = Math.abs(calcAge - cachedData.age) / cachedData.age;
@@ -346,46 +332,32 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
       }
 
       if (isFromCache) {
-        // 命中快取，模擬 AI 思考延遲
         await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
       } else {
-        // 未命中快取，請求 API 並寫入
         const result = await estimateDietCaloriesText(name, fullness, calcWeight, calcHeight, calcAge, calcGender);
         const numMatch = result.match(/\d+/);
         if (numMatch) {
           cals = parseInt(numMatch[0]);
-          dietCache[cacheKey] = {
-            weight: calcWeight,
-            age: calcAge,
-            calories: cals,
-            updatedAt: Date.now()
-          };
+          dietCache[cacheKey] = { weight: calcWeight, age: calcAge, calories: cals, updatedAt: Date.now() };
           safeStorage.set('wt_diet_text_cache', dietCache);
         }
       }
 
-      if (cals !== null) {
-        setExpr(String(cals));
-      }
-    } catch (e) {
-      console.error("AI Estimation failed:", e);
-    }
+      if (cals !== null) setFinalValue(String(cals));
+    } catch (e) { console.error("AI Estimation failed:", e); }
     setIsEstimating(false);
   };
 
-  // AI 估算運動熱量 (加入功率快取與模擬機制)
   const handleEstimateExercise = async () => {
     if (!name || !duration) return;
     setIsEstimating(true);
     try {
-      // 缺漏資料時的計算基礎設定
       const calcAge = profile?.birthYear ? new Date().getFullYear() - Number(profile.birthYear) : 25;
       const calcHeight = profile?.height ? Number(profile.height) : 160;
       const calcWeight = latestWeight ? Number(latestWeight) : 60;
       const calcGender = profile?.gender || 'female';
       const durNum = Number(duration);
 
-      // 讀取本地端功率快取
       const powerCache = safeStorage.get('wt_ex_power_cache') || {};
       const cacheKey = `${name}_${calcGender}`; 
       const cachedData = powerCache[cacheKey];
@@ -393,7 +365,6 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
       let power = null;
       let isFromCache = false;
 
-      // 檢查快取是否匹配 (體重與年齡誤差在 5% 以內)
       if (cachedData) {
         const weightDiff = Math.abs(calcWeight - cachedData.weight) / cachedData.weight;
         const ageDiff = Math.abs(calcAge - cachedData.age) / cachedData.age;
@@ -404,46 +375,40 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
       }
 
       if (isFromCache) {
-        // 若命中快取，模擬 AI 思考的延遲感 (隨機 800ms ~ 1800ms)
         await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
       } else {
-        // 呼叫 API 取得每分鐘消耗功率
         const result = await estimateExercisePower(name, calcWeight, calcHeight, calcAge, calcGender);
         const numMatch = result.match(/[\d.]+/);
         if (numMatch) {
           power = parseFloat(numMatch[0]);
-          // 寫入快取
-          powerCache[cacheKey] = {
-            weight: calcWeight,
-            age: calcAge,
-            power: power,
-            updatedAt: Date.now()
-          };
+          powerCache[cacheKey] = { weight: calcWeight, age: calcAge, power: power, updatedAt: Date.now() };
           safeStorage.set('wt_ex_power_cache', powerCache);
         }
       }
 
       if (power !== null) {
-        // 利用功率 * 時間算出總熱量
         const totalCals = Math.round(power * durNum);
-        setExpr(String(totalCals));
+        setFinalValue(String(totalCals));
       }
-    } catch (e) {
-      console.error("AI Estimation failed:", e);
-    }
+    } catch (e) { console.error("AI Estimation failed:", e); }
     setIsEstimating(false);
   };
 
-  // 計算機按鍵邏輯
   const handlePress = (val) => {
     if (val === 'C') { setExpr(''); return; }
     if (val === 'DEL') { setExpr(prev => prev.slice(0, -1)); return; }
-    if (val === '=') {
-      try {
-        // eslint-disable-next-line no-new-func
-        const result = new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)();
-        if(!isNaN(result) && isFinite(result)) setExpr(String(Math.round(result * 100) / 100)); 
-      } catch (e) { setExpr('Error'); setTimeout(() => setExpr(''), 1000); }
+    if (val === 'ENTER') {
+      let result = expr;
+      if (/[+×÷\-]/.test(expr)) {
+        try {
+          // eslint-disable-next-line no-new-func
+          result = String(new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)());
+          if(!isNaN(result) && isFinite(result)) result = String(Math.round(result * 100) / 100);
+          else result = '0';
+        } catch (e) { result = '0'; }
+      }
+      setFinalValue(result);
+      setShowCalc(false);
       return;
     }
     if (expr === 'Error') { setExpr(val); return; }
@@ -451,19 +416,13 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
   };
 
   const handleConfirm = () => {
-    let finalVal = expr;
-    if (/[+×÷\-]/.test(expr)) {
-      try {
-        // eslint-disable-next-line no-new-func
-        finalVal = String(new Function(`'use strict'; return (${expr.replace(/×/g, '*').replace(/÷/g, '/')})`)());
-      } catch(e) { return; }
-    }
-    if (finalVal || finalVal === '') {
+    let val = finalValue;
+    if (val || val === '') {
       const dataToSave = (isDiet) 
-        ? { content: name, calories: finalVal, image } 
+        ? { content: name, calories: val, image } 
         : (isEx) 
-          ? { type: name, calories: finalVal, duration, image } 
-          : { value: finalVal };
+          ? { type: name, calories: val, duration, image } 
+          : { value: val };
       onSave(dataToSave);
     }
   };
@@ -472,11 +431,10 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
     { label: 'C', col: 1 }, { label: 'DEL', col: 1 }, { label: '÷', col: 1 }, { label: '×', col: 1 },
     { label: '7', col: 1 }, { label: '8', col: 1 }, { label: '9', col: 1 }, { label: '-', col: 1 },
     { label: '4', col: 1 }, { label: '5', col: 1 }, { label: '6', col: 1 }, { label: '+', col: 1 },
-    { label: '1', col: 1 }, { label: '2', col: 1 }, { label: '3', col: 1 }, { label: '=', col: 1, row: 2, isEq: true },
+    { label: '1', col: 1 }, { label: '2', col: 1 }, { label: '3', col: 1 }, { label: 'ENTER', col: 1, row: 2, isEq: true },
     { label: '0', col: 2 }, { label: '.', col: 1 }
   ];
 
-  const displayStr = expr || "0";
   const getFontSize = (text) => {
     const len = text.length;
     if (isLarge) {
@@ -492,33 +450,59 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
     }
   };
 
+  // 獨立計算機視圖
+  if (showCalc) {
+    return (
+      <div className="flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E8E4DF] dark:border-[#3A3A3A]">
+          <button onClick={() => setShowCalc(false)} className="p-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full">
+            <ChevronLeft className="w-5 h-5 stroke-[2]"/>
+          </button>
+          <span className="text-[#5C5C5C] dark:text-[#D1D1D1] font-bold text-[13px] tracking-widest">輸入數值</span>
+          <div className="w-8"></div>
+        </div>
+        
+        <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden`}>
+           <p className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right truncate min-w-0`} style={{ fontSize: getFontSize(expr || "0") }}>
+             {expr || "0"}
+           </p>
+        </div>
+
+        <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2.5')}`}>
+          {btns.map(btn => (
+            <button key={btn.label} type="button" onClick={() => handlePress(btn.label)}
+              className={`${s('h-12 text-xl', 'h-14 text-2xl')} rounded-2xl font-light flex items-center justify-center transition-colors active:scale-95
+                ${btn.col === 2 ? 'col-span-2' : 'col-span-1'}
+                ${btn.row === 2 ? 'row-span-2' : 'row-span-1'}
+                ${btn.isEq ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212]' : 
+                  ['÷','×','-','+'].includes(btn.label) ? 'bg-[#EFECE7] dark:bg-[#333333] text-[#8C8477] dark:text-[#A1988B]' : 
+                  ['C','DEL'].includes(btn.label) ? 'bg-[#F7EFEA] dark:bg-[#2D2520] text-[#C4A495] dark:text-[#C4A495]' : 
+                  'bg-white dark:bg-[#1E1E1E] border border-[#F0ECE7] dark:border-[#333333] text-[#5C5C5C] dark:text-[#D1D1D1]'}`}
+            >
+              {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : 
+               btn.label === 'ENTER' ? <CornerDownLeft className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[2]`}/> : btn.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 表單視圖
   return (
-    <div className="flex flex-col gap-4">
-      {/* 照片上傳區塊 (飲食/運動適用) */}
+    <div className="flex flex-col gap-4 animate-in fade-in duration-200">
       {(isDiet || isEx) && (
         <div className="w-full relative bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl overflow-hidden min-h-[120px] flex items-center justify-center">
-          <input 
-            type="file" 
-            accept="image/*" 
-            ref={fileInputRef} 
-            onChange={handleImageUpload} 
-            className="hidden" 
-          />
+          <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageUpload} className="hidden" />
           {image ? (
             <>
               <img src={image} alt="uploaded preview" className="w-full h-40 object-cover" />
-              <button 
-                onClick={() => setImage(null)} 
-                className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm transition-colors"
-              >
+              <button onClick={() => setImage(null)} className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-sm transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </>
           ) : (
-            <button 
-              onClick={() => fileInputRef.current?.click()} 
-              className="flex flex-col items-center justify-center w-full py-8 text-[#A89F91] dark:text-[#888888] hover:text-[#8C8477] dark:hover:text-[#A1988B] transition-colors"
-            >
+            <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center justify-center w-full py-8 text-[#A89F91] dark:text-[#888888] hover:text-[#8C8477] dark:hover:text-[#A1988B] transition-colors">
               <Camera className="w-8 h-8 mb-2 stroke-[1.5]" />
               <span className={`${s('text-[11px]', 'text-[13px] font-medium')} tracking-widest`}>點擊新增照片紀錄</span>
             </button>
@@ -526,33 +510,17 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
         </div>
       )}
 
-      {/* 項目名稱與持續時間 (運動) */}
       {(isDiet || isEx) && (
         <div className="flex flex-col gap-3">
           <div>
-            <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>
-              項目名稱
-            </label>
-            <input 
-              value={name} 
-              onChange={e => setName(e.target.value)} 
-              placeholder="輸入名稱" 
-              className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} 
-            />
+            <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>項目名稱</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="輸入名稱" className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
           </div>
           {isEx && (
             <div>
-              <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>
-                持續時間 (分鐘, 選填)
-              </label>
+              <label className={`${s('text-[10px]', 'text-[12px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B] mb-1.5 block`}>持續時間 (分鐘, 選填)</label>
               <div className="relative">
-                <input 
-                  type="number" 
-                  value={duration} 
-                  onChange={e => setDuration(e.target.value)} 
-                  placeholder="例如: 30" 
-                  className={`w-full ${s('p-3.5 pl-10 text-sm', 'p-3 pl-10 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} 
-                />
+                <input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="例如: 30" className={`w-full ${s('p-3.5 pl-10 text-sm', 'p-3 pl-10 text-[16px] font-bold')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] font-medium`} />
                 <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A89F91] dark:text-[#888888] stroke-[1.5]" />
               </div>
             </div>
@@ -560,17 +528,18 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
         </div>
       )}
 
-      {/* 顯示計算結果框與 AI 估算按鈕 */}
-      <div className={`bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all relative`}>
+      {/* 觸發計算機區域 */}
+      <div className={`relative bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-2xl ${s('p-4 min-h-[5.5rem]', 'p-4 min-h-[6.5rem]')} flex flex-col items-end justify-center overflow-hidden transition-all group hover:border-[#D6D0C4] dark:hover:border-[#4A4A4A]`}>
         
         {/* 左上角的標題及AI估算按鈕佈局 */}
-        <div className="absolute top-3 left-4 flex flex-col items-start gap-2">
+        <div className="absolute top-3 left-4 flex flex-col items-start gap-2 z-20" onClick={(e) => e.stopPropagation()}>
           <p className={`text-[#A89F91] dark:text-[#888888] ${s('text-[10px]', 'text-[12px]')} tracking-widest font-medium shrink-0`}>{title}</p>
           
           {isDiet && (image || name) && (
             <div className="flex flex-col items-start gap-1">
               <button 
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (image) handleEstimateDietImage();
                   else setShowFullnessOptions(prev => !prev);
                 }}
@@ -587,7 +556,7 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
                   {['沒吃飽', '剛剛好', '好飽'].map(lvl => (
                     <button
                       key={lvl}
-                      onClick={() => handleEstimateDietText(lvl)}
+                      onClick={(e) => { e.stopPropagation(); handleEstimateDietText(lvl); }}
                       className="px-2 py-1 text-[10px] bg-white dark:bg-[#1E1E1E] text-[#8C8477] dark:text-[#A1988B] rounded-md border border-[#E8E4DF] dark:border-[#3A3A3A] hover:bg-[#F9F8F6] dark:hover:bg-[#2A2A2A] active:scale-95 transition-all shadow-sm tracking-wider font-medium"
                     >
                       {lvl}
@@ -600,7 +569,7 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
 
           {isEx && (
             <button 
-              onClick={handleEstimateExercise}
+              onClick={(e) => { e.stopPropagation(); handleEstimateExercise(); }}
               disabled={isEstimating || !name || !duration}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white text-[10px] sm:text-[11px] font-medium tracking-wider transition-all
                 ${(isEstimating || !name || !duration) ? 'bg-[#C2BCB6] dark:bg-[#4A4A4A] cursor-not-allowed' : 'bg-gradient-to-r from-[#C4A495] to-[#B57C76] active:scale-95 shadow-sm'}`}
@@ -611,33 +580,24 @@ const RecordEditor = ({ category, item, isDiet, isEx, isLarge, latestWeight, onS
           )}
         </div>
 
-        <p 
-          className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1 min-w-0 ${isDiet || isEx ? 'mt-8' : ''}`} 
-          style={{ fontSize: getFontSize(displayStr) }}
+        {/* 觸發計算機的大按鈕 */}
+        <button 
+           type="button" 
+           onClick={() => { setExpr(finalValue); setShowCalc(true); }}
+           className={`w-full flex-1 flex items-end justify-end focus:outline-none z-10 ${isDiet || isEx ? 'mt-8' : ''}`}
         >
-          {displayStr}
-        </p>
-      </div>
-
-      {/* 數字鍵盤 */}
-      <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2.5')}`}>
-        {btns.map(btn => (
-          <button key={btn.label} type="button" onClick={() => handlePress(btn.label)}
-            className={`${s('h-12 text-xl', 'h-14 text-2xl')} rounded-2xl font-light flex items-center justify-center transition-colors active:scale-95
-              ${btn.col === 2 ? 'col-span-2' : 'col-span-1'}
-              ${btn.row === 2 ? 'row-span-2' : 'row-span-1'}
-              ${btn.isEq ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212]' : 
-                ['÷','×','-','+'].includes(btn.label) ? 'bg-[#EFECE7] dark:bg-[#333333] text-[#8C8477] dark:text-[#A1988B]' : 
-                ['C','DEL'].includes(btn.label) ? 'bg-[#F7EFEA] dark:bg-[#2D2520] text-[#C4A495] dark:text-[#C4A495]' : 
-                'bg-white dark:bg-[#1E1E1E] border border-[#F0ECE7] dark:border-[#333333] text-[#5C5C5C] dark:text-[#D1D1D1]'}`}
+          <p 
+            className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-wider w-full text-right transition-all duration-200 truncate leading-none pb-1 min-w-0 group-active:scale-95 group-hover:text-[#8C8477] dark:group-hover:text-[#A1988B]`} 
+            style={{ fontSize: getFontSize(finalValue || "0") }}
           >
-            {btn.label === 'DEL' ? <Delete className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/> : btn.label}
-          </button>
-        ))}
-        <button onClick={handleConfirm} className={`col-span-4 ${s('h-12', 'h-14 text-[16px]')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
-          儲存紀錄
+            {finalValue || "0"}
+          </p>
         </button>
       </div>
+
+      <button onClick={handleConfirm} className={`w-full ${s('h-12', 'h-14 text-[16px]')} bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-2xl font-medium tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2`}>
+        儲存紀錄
+      </button>
 
       {(isDiet || isEx) && <p className={`text-center ${s('text-[9px] mt-1 font-light', 'text-[11px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide`}>若留空或輸入 0，將單純紀錄有執行此項目。</p>}
     </div>
@@ -718,7 +678,6 @@ export default function App() {
   const activeProfile = draftProfile || profile;
   const isProfileDirty = draftProfile !== null;
 
-  // 控制設定按鈕的紅點提示
   const [showSettingsDot, setShowSettingsDot] = useState(() => {
     const hasViewed = safeStorage.get('wt_settings_viewed');
     const isMissingData = !profile.birthYear || !profile.height;
@@ -735,18 +694,12 @@ export default function App() {
   // --- 夜間模式與時間監聽邏輯 ---
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
     const checkTheme = () => {
       let isDarkTheme = false;
-      if (themeMode === 'dark') {
-        isDarkTheme = true;
-      } else if (themeMode === 'light') {
-        isDarkTheme = false;
-      } else {
-        isDarkTheme = mediaQuery.matches;
-      }
+      if (themeMode === 'dark') isDarkTheme = true;
+      else if (themeMode === 'light') isDarkTheme = false;
+      else isDarkTheme = mediaQuery.matches;
       setIsDark(isDarkTheme);
-
       if (isDarkTheme) {
         document.documentElement.classList.add('dark');
         document.body.style.backgroundColor = '#121212';
@@ -755,14 +708,9 @@ export default function App() {
         document.body.style.backgroundColor = '#F7F5F2';
       }
     };
-    
     checkTheme();
-    
-    const handleThemeChange = () => {
-      if (themeMode === 'auto') checkTheme();
-    };
+    const handleThemeChange = () => { if (themeMode === 'auto') checkTheme(); };
     mediaQuery.addEventListener('change', handleThemeChange);
-    
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [themeMode]);
 
@@ -800,11 +748,9 @@ export default function App() {
     
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      
       if (currentUser) {
         setIsSyncing(true);
         let isMounted = true;
-        
         try {
           const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'main');
           const pSnap = await getDoc(profileRef);
@@ -830,15 +776,11 @@ export default function App() {
             const id = d.id;
             const data = d.data();
             if (id.length === 10) { 
-              if (!rRecords[id] || (data._updatedAt || 0) > (rRecords[id]._updatedAt || 0)) {
-                rRecords[id] = data;
-              }
+              if (!rRecords[id] || (data._updatedAt || 0) > (rRecords[id]._updatedAt || 0)) rRecords[id] = data;
             } else if (id.length === 7) { 
               Object.keys(data).forEach(key => {
                 if (key.length === 10) { 
-                  if (!rRecords[key] || (data[key]._updatedAt || 0) > (rRecords[key]._updatedAt || 0)) {
-                    rRecords[key] = data[key];
-                  }
+                  if (!rRecords[key] || (data[key]._updatedAt || 0) > (rRecords[key]._updatedAt || 0)) rRecords[key] = data[key];
                 }
               });
             }
@@ -855,18 +797,11 @@ export default function App() {
             const rTime = rData?._updatedAt || 0;
             const lTime = lData?._updatedAt || 0;
 
-            if (rData && !lData) {
-              mergedRecords[date] = rData; 
-            } else if (!rData && lData) {
-              mergedRecords[date] = lData; 
-              needsUpload.push({ date, data: lData });
-            } else if (rData && lData) {
-              if (rTime >= lTime) {
-                mergedRecords[date] = rData;
-              } else {
-                mergedRecords[date] = lData; 
-                needsUpload.push({ date, data: lData });
-              }
+            if (rData && !lData) mergedRecords[date] = rData; 
+            else if (!rData && lData) { mergedRecords[date] = lData; needsUpload.push({ date, data: lData }); }
+            else if (rData && lData) {
+              if (rTime >= lTime) mergedRecords[date] = rData;
+              else { mergedRecords[date] = lData; needsUpload.push({ date, data: lData }); }
             }
           });
 
@@ -910,15 +845,11 @@ export default function App() {
               const id = d.id;
               const data = d.data();
               if (id.length === 10) {
-                if (!newRecs[id] || (data._updatedAt || 0) > (newRecs[id]._updatedAt || 0)) {
-                  newRecs[id] = data;
-                }
+                if (!newRecs[id] || (data._updatedAt || 0) > (newRecs[id]._updatedAt || 0)) newRecs[id] = data;
               } else if (id.length === 7) {
                 Object.keys(data).forEach(key => {
                   if (key.length === 10) {
-                    if (!newRecs[key] || (data[key]._updatedAt || 0) > (newRecs[key]._updatedAt || 0)) {
-                      newRecs[key] = data[key];
-                    }
+                    if (!newRecs[key] || (data[key]._updatedAt || 0) > (newRecs[key]._updatedAt || 0)) newRecs[key] = data[key];
                   }
                 });
               }
@@ -928,21 +859,15 @@ export default function App() {
               let changed = false;
               const next = { ...prev };
               Object.keys(newRecs).forEach(date => {
-                if ((newRecs[date]?._updatedAt || 0) >= (next[date]?._updatedAt || 0)) {
-                  next[date] = newRecs[date];
-                  changed = true;
-                }
+                if ((newRecs[date]?._updatedAt || 0) >= (next[date]?._updatedAt || 0)) { next[date] = newRecs[date]; changed = true; }
               });
               if (changed) safeStorage.set('wt_records', next);
               return changed ? next : prev;
             });
           });
 
-        } catch(e) {
-          console.error("Sync Error:", e);
-        } finally {
-          if (isMounted) setIsSyncing(false);
-        }
+        } catch(e) { console.error("Sync Error:", e); } 
+        finally { if (isMounted) setIsSyncing(false); }
       }
     });
 
@@ -985,10 +910,7 @@ export default function App() {
   };
 
   const handleTabClick = (tab) => {
-    if (tab === 'settings') {
-      setShowSettingsDot(false);
-      safeStorage.set('wt_settings_viewed', true);
-    }
+    if (tab === 'settings') { setShowSettingsDot(false); safeStorage.set('wt_settings_viewed', true); }
     if (activeTab === 'settings' && isProfileDirty && tab !== 'settings') {
       setModalState({ view: 'confirm_leave', pendingTab: tab });
     } else {
@@ -1088,28 +1010,25 @@ export default function App() {
     const pastObj = new Date(targetDObj);
     pastObj.setDate(pastObj.getDate() - i);
     const prevArr = getArrayData(records[getDateString(pastObj)] || {}, 'weight');
-    if(prevArr.length > 0) { 
-      prevWeight = prevArr[prevArr.length - 1].value; 
-      break; 
-    }
+    if(prevArr.length > 0) { prevWeight = prevArr[prevArr.length - 1].value; break; }
   }
-  if (latestWeight && prevWeight) {
-    weightChange = (latestWeight - prevWeight).toFixed(2);
-  }
+  if (latestWeight && prevWeight) { weightChange = (latestWeight - prevWeight).toFixed(2); }
 
   let tdee = 0;
-  // 缺漏資料時的計算基礎設定
+  let bmr = 0;
   const calcAge = activeProfile.birthYear ? new Date().getFullYear() - Number(activeProfile.birthYear) : 25;
   const calcHeight = activeProfile.height ? Number(activeProfile.height) : 160;
   const calcWeight = latestWeight ? Number(latestWeight) : 60;
   const calcGender = activeProfile.gender || 'female';
 
+  let rawBmr = 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge;
+  rawBmr += (calcGender === 'male' ? 5 : -161);
+  bmr = Math.max(500, Math.round(rawBmr)); // 提供合理底限
+
   if (activeProfile.customTDEE && Number(activeProfile.customTDEE) > 0) {
     tdee = Number(activeProfile.customTDEE);
-    tdee = Math.max(800, Math.min(6000, tdee)); // 合理範圍限制
+    tdee = Math.max(800, Math.min(6000, tdee));
   } else {
-    let bmr = 10 * calcWeight + 6.25 * calcHeight - 5 * calcAge;
-    bmr += (calcGender === 'male' ? 5 : -161);
     let weekEx = 0;
     for (let i = 1; i <= 7; i++) {
       const pastObj = new Date(targetDObj);
@@ -1120,67 +1039,76 @@ export default function App() {
       });
     }
     tdee = Math.round((bmr * 1.2) + (weekEx / 7));
-    tdee = Math.max(800, Math.min(6000, tdee)); // 合理範圍限制
+    tdee = Math.max(800, Math.min(6000, tdee));
   }
 
-  const renderHome = () => (
-    <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
-      <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
-        <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-[16px] font-bold gap-3')}`}>
-          <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A] shrink-0`}>
-            <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
-          </div>
-          {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
-        </button>
-        {targetDate !== todayStr && (
-          <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-[13px] px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium shrink-0`}>回今日</button>
-        )}
-      </div>
+  const renderHome = () => {
+    const tdeeTitle = activeProfile.showTDEE !== false ? ' / TDEE' : '';
+    const bmrTitle = activeProfile.showBMR === true ? ' / BMR' : '';
+    const titlesStr = `INTAKE${tdeeTitle}${bmrTitle}`;
 
-      <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
-        <div className="relative z-10 flex justify-between items-start">
-          <div className="min-w-0">
-            <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
-            <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
-              <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{latestWeight || '--'}</span>
-              <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
-            </div>
-            {weightChange && (
-              <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-3 py-1.5 text-[12px] font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
-                較前次 {Number(weightChange) > 0 ? '+' : ''}{weightChange} kg
-              </div>
-            )}
-          </div>
-        </div>
-        <div className={`mt-6 ${s('pt-4', 'pt-5')} border-t border-[#D6D0C4]/40 dark:border-[#4A4A4A]/40 relative z-10`}>
-          <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-[12px] font-bold mb-2')} tracking-widest`}>INTAKE / TDEE</p>
-          <div className={`flex items-end ${s('gap-1', 'gap-1.5')}`}>
-            <span className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-[clamp(1.125rem,6vw,1.875rem)] ${s('', 'font-bold text-[clamp(1.5rem,8vw,2.25rem)]')}`}>{totalIntake}</span>
-            <span className={`text-[#A89F91] dark:text-[#888888] font-light ${s('text-sm pb-[1px]', 'text-[16px] font-medium pb-[2px]')} leading-none`}>/ {tdee} kcal</span>
-          </div>
-        </div>
-      </div>
+    const valTdee = activeProfile.showTDEE !== false ? ` / ${tdee}` : '';
+    const valBmr = activeProfile.showBMR === true ? ` / ${bmr}` : '';
 
-      <div className={`grid grid-cols-2 ${s('gap-3', 'gap-3')}`}>
-        {[
-          { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
-          { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
-          { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
-          { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
-        ].map(card => (
-          <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-4 gap-3', 'p-4 sm:p-5 gap-3')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)] min-w-0`}>
-            <div className={`${s('w-9 h-9', 'w-11 h-11')} rounded-2xl ${card.bg} flex items-center justify-center shrink-0`}>
-              <card.icon className={`${s('w-4 h-4', 'w-6 h-6')} ${card.color} stroke-[1.5]`} />
+    return (
+      <div className={`p-6 space-y-4 animate-in fade-in duration-500 ${s('pb-28', 'pb-32')}`}>
+        <div className={`flex items-center justify-between bg-white dark:bg-[#1E1E1E] ${s('p-3.5', 'p-4')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+          <button onClick={() => setModalState({ view: 'datepicker' })} className={`flex items-center gap-2.5 text-[#5C5C5C] dark:text-[#D1D1D1] tracking-wider active:scale-95 transition-transform ${s('text-sm font-medium', 'text-[16px] font-bold gap-3')}`}>
+            <div className={`${s('w-8 h-8', 'w-10 h-10')} rounded-xl bg-[#F9F8F6] dark:bg-[#2A2A2A] flex items-center justify-center border border-[#E8E4DF] dark:border-[#3A3A3A] shrink-0`}>
+              <CalendarIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#8C8477] dark:text-[#A1988B] stroke-[1.5]`} />
             </div>
-            <div className="min-w-0 text-left w-full">
-              <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-[11px]', 'text-[14px] font-bold')} truncate`}>{card.title}</h3>
-              <p className={`${s('text-[10px] mt-1 font-light', 'text-[12px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide truncate`}>{card.val}</p>
-            </div>
+            {targetDate === todayStr ? '今天' : targetDate.replace(/-/g, '.')}
           </button>
-        ))}
+          {targetDate !== todayStr && (
+            <button onClick={() => setTargetDate(todayStr)} className={`${s('text-[10px] px-3 py-1.5', 'text-[13px] px-4 py-2 font-bold')} tracking-widest bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl text-[#8C8477] dark:text-[#A1988B] active:scale-95 transition-all font-medium shrink-0`}>回今日</button>
+          )}
+        </div>
+
+        <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
+          <div className="relative z-10 flex justify-between items-start">
+            <div className="min-w-0">
+              <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
+              <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
+                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{latestWeight || '--'}</span>
+                <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
+              </div>
+              {weightChange && (
+                <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-3 py-1.5 text-[12px] font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
+                  較前次 {Number(weightChange) > 0 ? '+' : ''}{weightChange} kg
+                </div>
+              )}
+            </div>
+          </div>
+          <div className={`mt-6 ${s('pt-4', 'pt-5')} border-t border-[#D6D0C4]/40 dark:border-[#4A4A4A]/40 relative z-10`}>
+            <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1.5', 'text-[12px] font-bold mb-2')} tracking-widest`}>{titlesStr}</p>
+            <div className={`flex items-end ${s('gap-1', 'gap-1.5')}`}>
+              <span className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-[clamp(1.125rem,6vw,1.875rem)] ${s('', 'font-bold text-[clamp(1.5rem,8vw,2.25rem)]')}`}>{totalIntake}</span>
+              <span className={`text-[#A89F91] dark:text-[#888888] font-light ${s('text-sm pb-[1px]', 'text-[16px] font-medium pb-[2px]')} leading-none whitespace-nowrap`}>{valTdee}{valBmr} kcal</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={`grid grid-cols-2 ${s('gap-3', 'gap-3')}`}>
+          {[
+            { id: 'weight', title: '體重', icon: WeightScaleIcon, val: arrWeight.length ? `已記 ${arrWeight[arrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
+            { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
+            { id: 'diet', title: '飲食', icon: Utensils, val: arrDiet.length ? `已記 ${arrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
+            { id: 'exercise', title: '運動', icon: Flame, val: arrEx.length ? `已記 ${arrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
+          ].map(card => (
+            <button key={card.id} onClick={() => openCategoryFlow(card.id)} className={`bg-white dark:bg-[#1E1E1E] ${s('p-4 gap-3', 'p-4 sm:p-5 gap-3')} rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex flex-col items-start active:scale-95 transition-transform shadow-[0_2px_10px_rgba(0,0,0,0.01)] min-w-0`}>
+              <div className={`${s('w-9 h-9', 'w-11 h-11')} rounded-2xl ${card.bg} flex items-center justify-center shrink-0`}>
+                <card.icon className={`${s('w-4 h-4', 'w-6 h-6')} ${card.color} stroke-[1.5]`} />
+              </div>
+              <div className="min-w-0 text-left w-full">
+                <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-[11px]', 'text-[14px] font-bold')} truncate`}>{card.title}</h3>
+                <p className={`${s('text-[10px] mt-1 font-light', 'text-[12px] mt-1 font-medium')} text-[#C2BCB6] dark:text-[#666666] tracking-wide truncate`}>{card.val}</p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderModals = () => {
     if (!modalState) return null;
@@ -1192,8 +1120,14 @@ export default function App() {
     const isEx = category === 'exercise';
 
     const ModalLayout = ({ title, onBack, children }) => (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-5 sm:p-6')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] flex flex-col relative`}>
+      <div 
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={() => setModalState(null)} 
+      >
+        <div 
+          className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-5 sm:p-6')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] flex flex-col relative`}
+          onClick={(e) => e.stopPropagation()} 
+        >
           <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-5 pb-2')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10 shrink-0`}>
             <div className={`flex items-center ${s('gap-2', 'gap-3')} min-w-0`}>
               {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><ChevronLeft className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/></button>}
@@ -1211,19 +1145,11 @@ export default function App() {
     if (view === 'confirm_leave') {
       return (
         <ModalLayout title="尚未儲存變更">
-          <p className={`${s('text-xs', 'text-sm')} text-[#8C8477] dark:text-[#A1988B] mb-6 text-center tracking-wide`}>
-            有未儲存的變更，是否儲存？
-          </p>
+          <p className={`${s('text-xs', 'text-sm')} text-[#8C8477] dark:text-[#A1988B] mb-6 text-center tracking-wide`}>有未儲存的變更，是否儲存？</p>
           <div className="flex flex-col gap-3">
-            <button onClick={() => { handleSaveSettings(); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
-              儲存
-            </button>
-            <button onClick={() => { setDraftProfile(null); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#EFECE7] dark:bg-[#333333] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
-              捨棄
-            </button>
-            <button onClick={() => setModalState(null)} className={`w-full bg-transparent border border-[#E8E4DF] dark:border-[#3A3A3A] text-[#8C8477] dark:text-[#A1988B] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>
-              取消
-            </button>
+            <button onClick={() => { handleSaveSettings(); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>儲存</button>
+            <button onClick={() => { setDraftProfile(null); setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#EFECE7] dark:bg-[#333333] text-[#C78D87] dark:text-[#B86C65] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>捨棄</button>
+            <button onClick={() => setModalState(null)} className={`w-full bg-transparent border border-[#E8E4DF] dark:border-[#3A3A3A] text-[#8C8477] dark:text-[#A1988B] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>取消</button>
           </div>
         </ModalLayout>
       );
@@ -1292,14 +1218,8 @@ export default function App() {
       return (
         <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
           <RecordEditor 
-            category={category}
-            item={item}
-            isDiet={isDiet}
-            isEx={isEx}
-            isLarge={isLarge}
-            latestWeight={latestWeight}
-            onSave={(dataToSave) => handleSaveData(category, dataToSave)}
-            profile={activeProfile}
+            category={category} item={item} isDiet={isDiet} isEx={isEx} isLarge={isLarge}
+            latestWeight={latestWeight} onSave={(dataToSave) => handleSaveData(category, dataToSave)} profile={activeProfile}
           />
         </ModalLayout>
       );
@@ -1307,7 +1227,6 @@ export default function App() {
 
     if (view === 'new_card') {
       const availableIcons = isDiet ? ['Coffee','Apple','Pizza','Carrot','Fish','Beef','Utensils'] : ['Activity','Dumbbell','Flame','Bike','Shuttlecock','HeartPulse','Target'];
-      // 動態提示文字
       const namePlaceholder = isDiet ? '例如：拿鐵' : '例如：跳繩';
       return (
         <ModalLayout title="新增專屬卡片" onBack={() => setModalState({view: 'select', category, dateStr: operateDate})}>
@@ -1319,10 +1238,7 @@ export default function App() {
             if(!name) return;
             const newCard = { id: Date.now().toString(), name, icon };
             if (defCals) newCard.defaultCalories = defCals;
-            updateProfile(p => ({
-              ...p,
-              [isDiet ? 'dietCards' : 'exerciseCards']: [...p[isDiet ? 'dietCards' : 'exerciseCards'], newCard]
-            }));
+            updateProfile(p => ({ ...p, [isDiet ? 'dietCards' : 'exerciseCards']: [...p[isDiet ? 'dietCards' : 'exerciseCards'], newCard] }));
             setModalState({view: 'select', category, dateStr: operateDate});
           }} className={s('space-y-5', 'space-y-5')}>
             <div>
@@ -1404,9 +1320,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
   const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const swipeContainerRef = useRef(null);
 
-  const shiftMonth = (delta) => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
-  };
+  const shiftMonth = (delta) => { setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1)); };
 
   useEffect(() => {
     const el = swipeContainerRef.current;
@@ -1416,75 +1330,32 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
     let lock = null;
     let dx = 0;
 
-    const onTouchStart = (e) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-      lock = null;
-      dx = 0;
-      el.style.transition = 'none';
-    };
-
+    const onTouchStart = (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; lock = null; dx = 0; el.style.transition = 'none'; };
     const onTouchMove = (e) => {
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
-      dx = currentX - startX;
-      const dy = currentY - startY;
-
+      const currentX = e.touches[0].clientX; const currentY = e.touches[0].clientY; dx = currentX - startX; const dy = currentY - startY;
       if (!lock) {
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 5) lock = 'horizontal';
         else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) lock = 'vertical';
       }
-
-      if (lock === 'horizontal') {
-        if (e.cancelable) e.preventDefault(); 
-        el.style.transform = `translateX(calc(-40% + ${dx}px))`;
-      }
+      if (lock === 'horizontal') { if (e.cancelable) e.preventDefault(); el.style.transform = `translateX(calc(-40% + ${dx}px))`; }
     };
-
     const onTouchEnd = () => {
       if (lock === 'horizontal') {
         el.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        
-        if (dx > 60) {
-          el.style.transform = `translateX(-20%)`;
-          setTimeout(() => {
-            el.style.transition = 'none';
-            el.style.transform = `translateX(-40%)`; 
-            shiftMonth(-1); 
-          }, 300);
-        } else if (dx < -60) {
-          el.style.transform = `translateX(-60%)`;
-          setTimeout(() => {
-            el.style.transition = 'none';
-            el.style.transform = `translateX(-40%)`;
-            shiftMonth(1);
-          }, 300);
-        } else {
-          el.style.transform = `translateX(-40%)`;
-        }
+        if (dx > 60) { el.style.transform = `translateX(-20%)`; setTimeout(() => { el.style.transition = 'none'; el.style.transform = `translateX(-40%)`; shiftMonth(-1); }, 300); } 
+        else if (dx < -60) { el.style.transform = `translateX(-60%)`; setTimeout(() => { el.style.transition = 'none'; el.style.transform = `translateX(-40%)`; shiftMonth(1); }, 300); } 
+        else { el.style.transform = `translateX(-40%)`; }
       }
     };
 
-    el.addEventListener('touchstart', onTouchStart, { passive: false });
-    el.addEventListener('touchmove', onTouchMove, { passive: false });
-    el.addEventListener('touchend', onTouchEnd);
-    el.addEventListener('touchcancel', onTouchEnd);
-
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('touchcancel', onTouchEnd);
-    };
+    el.addEventListener('touchstart', onTouchStart, { passive: false }); el.addEventListener('touchmove', onTouchMove, { passive: false }); el.addEventListener('touchend', onTouchEnd); el.addEventListener('touchcancel', onTouchEnd);
+    return () => { el.removeEventListener('touchstart', onTouchStart); el.removeEventListener('touchmove', onTouchMove); el.removeEventListener('touchend', onTouchEnd); el.removeEventListener('touchcancel', onTouchEnd); };
   }, []);
 
   const monthsData = React.useMemo(() => {
     return [-2, -1, 0, 1, 2].map(offset => {
       const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
-      const year = d.getFullYear();
-      const month = d.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-      const firstDay = new Date(year, month, 1).getDay();
+      const year = d.getFullYear(); const month = d.getMonth(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const firstDay = new Date(year, month, 1).getDay();
       const days = Array(firstDay).fill(null).concat(Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1)));
       return { id: `${year}-${month}`, year, month, days };
     });
@@ -1516,11 +1387,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
         </div>
 
         <div className="-mr-6">
-          <div 
-            ref={swipeContainerRef} 
-            className="flex w-[500%] will-change-transform touch-pan-y" 
-            style={{ transform: 'translateX(-40%)' }}
-          >
+          <div ref={swipeContainerRef} className="flex w-[500%] will-change-transform touch-pan-y" style={{ transform: 'translateX(-40%)' }}>
             {monthsData.map((mData) => (
               <div key={mData.id} className="w-1/5 shrink-0 pr-6">
                 <div className={`grid grid-cols-7 ${s('gap-1.5', 'gap-1')}`}>
@@ -1575,9 +1442,7 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                     return (
                       <button key={dStr} onClick={() => onSelectDate(dStr, viewMode)} className={`${heightClass} ${s('rounded-[10px] p-1', 'rounded-[12px] p-1.5')} flex flex-col items-center transition-colors border active:scale-95 min-w-0 overflow-hidden ${isToday ? 'bg-[#F9F8F6] dark:bg-[#2A2A2A] border-[#D6D0C4] dark:border-[#4A4A4A]' : 'bg-white dark:bg-[#1E1E1E] border-[#F0ECE7] dark:border-[#333333]'}`}>
                         <span className={`${s('text-[8px] mb-1 font-medium', 'text-[11px] mb-1 font-bold')} ${isToday ? 'text-[#8C8477] dark:text-[#A1988B]' : 'text-[#A89F91] dark:text-[#888888]'} shrink-0`}>{date.getDate()}</span>
-                        <div className="flex-1 flex items-center justify-center pointer-events-none min-w-0">
-                          {cellContent}
-                        </div>
+                        <div className="flex-1 flex items-center justify-center pointer-events-none min-w-0">{cellContent}</div>
                       </button>
                     );
                   })}
@@ -1629,10 +1494,7 @@ function TrendChart({ records, isLarge }) {
   if (maxW === minW) { minW -= 1; maxW += 1; }
   if ((maxW - minW) % 2 !== 0) { maxW += 1; }
 
-  const viewBoxWidth = 320;
-  const viewBoxHeight = 180;
-  const paddingX = s(20, 20); 
-  const paddingY = 25;
+  const viewBoxWidth = 320; const viewBoxHeight = 180; const paddingX = s(20, 20); const paddingY = 25;
   const points = weightData.map((d, i) => ({
     x: paddingX + (i / (weightData.length - 1)) * (viewBoxWidth - paddingX * 2),
     y: viewBoxHeight - paddingY - ((d.weight - minW) / (maxW - minW)) * (viewBoxHeight - paddingY * 2),
@@ -1643,10 +1505,7 @@ function TrendChart({ records, isLarge }) {
   let lastMonth = null;
   points.forEach(p => {
     const m = parseInt(p.dateStr.split('-')[1]);
-    if (m !== lastMonth) {
-      xAxisLabels.push({ x: p.x, label: `${m}月` });
-      lastMonth = m;
-    }
+    if (m !== lastMonth) { xAxisLabels.push({ x: p.x, label: `${m}月` }); lastMonth = m; }
   });
 
   return (
@@ -1726,6 +1585,35 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           </div>
         </div>
       </div>
+
+      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-6 space-y-5')}`}>
+        <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Activity className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 指標顯示設定</h2>
+        
+        <div className={`flex items-center justify-between bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-2xl ${s('p-4', 'p-5')} border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+          <div className="min-w-0 flex-1 pr-4">
+            <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-xs', 'text-[14px] font-bold')}`}>顯示 TDEE</h3>
+            <p className={`${s('text-[10px] mt-1.5', 'text-[12px] mt-2')} text-[#A89F91] dark:text-[#888888] font-light leading-relaxed`}>
+              每日總消耗 (Total Daily Energy Expenditure)。維持目前體重所需的總熱量，包含基礎代謝與活動消耗。
+            </p>
+          </div>
+          <button onClick={() => onChangeSetting({ showTDEE: profile.showTDEE !== false ? false : true })} className={`relative rounded-full transition-colors duration-300 shrink-0 ${s('w-11 h-6', 'w-12 h-7')} ${profile.showTDEE !== false ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
+            <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.showTDEE !== false ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
+          </button>
+        </div>
+
+        <div className={`flex items-center justify-between bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-2xl ${s('p-4', 'p-5')} border border-[#E8E4DF] dark:border-[#3A3A3A]`}>
+          <div className="min-w-0 flex-1 pr-4">
+            <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest ${s('text-xs', 'text-[14px] font-bold')}`}>顯示 BMR</h3>
+            <p className={`${s('text-[10px] mt-1.5', 'text-[12px] mt-2')} text-[#A89F91] dark:text-[#888888] font-light leading-relaxed`}>
+              基礎代謝率 (Basal Metabolic Rate)。維持生命所需的最低熱量，即一整天不活動也會消耗的熱量。
+            </p>
+          </div>
+          <button onClick={() => onChangeSetting({ showBMR: profile.showBMR === true ? false : true })} className={`relative rounded-full transition-colors duration-300 shrink-0 ${s('w-11 h-6', 'w-12 h-7')} ${profile.showBMR === true ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
+            <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.showBMR === true ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
+          </button>
+        </div>
+      </div>
+
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
         <div className={`grid grid-cols-3 ${s('gap-2', 'gap-2')}`}>
@@ -1734,6 +1622,7 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           <button onClick={() => onChangeSetting({ themeMode: 'auto' })} className={`rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${themeMode === 'auto' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>自動</button>
         </div>
       </div>
+
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] flex justify-between items-center ${s('p-6', 'p-6')}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`${s('w-10 h-10 rounded-xl', 'w-11 h-11 rounded-2xl')} bg-[#F5F2EB] dark:bg-[#2C2A25] flex items-center justify-center shrink-0`}>
@@ -1748,12 +1637,14 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, user, auth, i
           <div className={`absolute bg-white dark:bg-[#D1D1D1] rounded-full transition-transform duration-300 ${s('top-1 left-1 w-4 h-4', 'top-1 left-1 w-5 h-5')} ${profile.visualFriendly ? s('translate-x-5', 'translate-x-5') : 'translate-x-0'}`} />
         </button>
       </div>
+
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6', 'p-6')} mb-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
         <button onClick={onSave} disabled={!isDirty} className={`w-full rounded-xl font-bold tracking-widest transition-all flex items-center justify-center gap-2 ${s('py-3.5 text-[13px]', 'py-4 text-[15px]')} ${isDirty ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] active:scale-95 shadow-md' : 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#C2BCB6] dark:text-[#666666] cursor-not-allowed border border-[#E8E4DF] dark:border-[#3A3A3A]'}`}>
           <CheckCircle2 className={`${s('w-4 h-4', 'w-5 h-5')} stroke-[1.5] ${isDirty ? '' : 'opacity-50'}`} />
           {isDirty ? '儲存所有變更' : '已儲存最新設定'}
         </button>
       </div>
+
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-2', 'text-[14px] font-bold mb-3')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><ShieldCheck className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 雲端備份</h2>
         {user && !user.isAnonymous ? (
