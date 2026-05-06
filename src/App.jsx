@@ -1120,6 +1120,12 @@ export default function App() {
     }
     if (pLatestWeight && prevWeight) { weightChange = (pLatestWeight - prevWeight).toFixed(2); }
 
+    let displayWeight = pLatestWeight;
+    if (dateStr > todayStr) {
+      displayWeight = null;
+      weightChange = null;
+    }
+
     let tdee = 0;
     let bmr = 0;
     const calcAge = activeProfile.birthYear ? new Date().getFullYear() - Number(activeProfile.birthYear) : 25;
@@ -1162,7 +1168,7 @@ export default function App() {
             <div className="min-w-0">
               <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
               <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
-                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{pLatestWeight || '--'}</span>
+                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{displayWeight || '--'}</span>
                 <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
               </div>
               {weightChange && (
