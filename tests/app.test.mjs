@@ -31,7 +31,8 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     assert.equal((await req('/api/export', 'GET', undefined, { 'Tailscale-User-Login': 'other@example.test' })).status, 403);
     assert.equal((await req('/api/profile', 'PUT', {}, { Origin: 'https://evil.test' })).status, 403);
     const invalid = await req('/api/profile', 'PUT', { calorieGoal: -1 }); assert.equal(invalid.status, 400, JSON.stringify(invalid));
-    assert.equal((await req('/api/profile', 'PUT', { calorieGoal: 2150, proteinGoal: 140, weightGoal: 90 })).status, 200);
+    assert.equal((await req('/api/profile', 'PUT', { calorieGoal: 2150, proteinGoal: 140, weightGoal: 90, aiModel: 'test-model' })).status, 200);
+    assert.equal((await req('/api/ai/status')).data.model, 'test-model');
     const original = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#ffcc00' } }).jpeg().withExif({ IFD0: { Artist: 'should be removed' } }).toBuffer();
     const uploaded = await req('/api/photos', 'POST', original); assert.equal(uploaded.status, 201);
     const image = uploaded.data.image;

@@ -1,7 +1,7 @@
 import { accessCredentials, readCredentials } from './credentials.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { photosDir } from './data.mjs';
+import { photosDir, state } from './data.mjs';
 const nutrients = ['grams', 'calories', 'protein', 'carbs', 'fat'];
 const number = { type: 'number', minimum: 0, maximum: 100000 };
 const item = { type: 'object', additionalProperties: false, properties: { name: { type: 'string' }, ...Object.fromEntries(nutrients.map(k => [k, number])) }, required: ['name', ...nutrients] };
@@ -22,7 +22,7 @@ export async function models() {
 }
 export async function aiStatus() {
   const c = await readCredentials();
-  return { provider: 'chatgpt-plan', authorized: !!c?.scopes?.includes('chatgpt.tokens.use.direct'), account: c?.email || null, registration: c?.client_id || null, model: process.env.WEIGHTAPP_MODEL || null };
+  return { provider: 'chatgpt-plan', authorized: !!c?.scopes?.includes('chatgpt.tokens.use.direct'), account: c?.email || null, registration: c?.client_id || null, model: state().profile.aiModel || process.env.WEIGHTAPP_MODEL || null };
 }
 let busy = false;
 export async function analyze({ image, text, model }) {

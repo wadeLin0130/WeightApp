@@ -18,7 +18,11 @@ Linux 實測：Node 22.22.1、npm 9.2.0、Docker 29.6.1（本 App 未使用）�
 | SQLite | 正式庫 integrity_check = ok |
 | 未授權保護 | 隔離測試缺少／錯誤擁有者的資料及匯出請求回 403；正式端未帶 Serve 身分的 localhost 請求回 403。未借用另一台未授權實體裝置測試 |
 | iPhone Safari | 已提供實際 HTTPS 網址，等待使用者手機開啟與拍照／選圖確認；不可聲稱實機通過 |
-| AI 授權與照片 PoC | 官方 SIWC flow 實際在同意頁回覆 3p_delegated_access_policy_denied，畫面指出組織限制 OSS 使用 ChatGPT 方案，需管理員檢查全域管理員主控台的外部存取／OSS／使用 ChatGPT 方案及方案、工作區、個別應用程式限制。尚未確認此次選定工作區，不能推定個人方案也不可用。未收到回呼或取得 WeightApp Token；照片 PoC 尚未成功，保留手動紀錄及 AI Provider 介面，不改用付費 API或非官方端點 |
+| AI 授權與照片 PoC | 先前同意頁回覆 3p_delegated_access_policy_denied；管理員調整政策後 OAuth 已成功，scope 包含 chatgpt.tokens.use.direct。憑證經 SSH 移交 VM（0600），Mac Token 副本已移除，由 VM 管理 refresh。VM 實際取得帳號模型目錄，gpt-6.1-terra 成功辨識公開沙拉照片，收到 response.completed 並通過 JSON 與加總驗證：10 項食材／假設，528 kcal、蛋白質 38.6 g、碳水 38.9 g、脂肪 27.4 g。以上僅為模型估算，非準確度驗證。已將該模型設為 App 預設，未寫入飲食紀錄 |
 | Firebase 歷史遷移 | 缺少原專案環境設定／原版登入 session，尚未取得完整舊紀錄；已提供唯讀快取匯出、預覽、備份、保留現有日期的 JSON 匯入。未刪除雲端資料 |
 
 官方文件已核對：SIWC OSS 概覽、登入、VM、模型與推論、app-server、preview limitations。採用直接 Responses OAuth 而非 app-server，因為餐點分析不需要任何代理執行工具；無 API key、無自動購買、無付費 fallback。只有 SSE 完成且資料驗證通過才回傳估算，仍需使用者確認儲存。未安裝本機 LLM。
+
+照片 PoC 測試來源：`https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=640&q=80`，使用公開測試照片，未上傳個人健康紀錄。實際結果檔僅保存於私有測試產物中。
+
+正式 Chrome AI 流程：首頁選取同一公開照片 → 上傳 → 按辨識 → 表單填入 10 項食材、營養素、合計與假設。該次估算為 695 kcal，將首項熱量 312 改成 300 後，合計立即變為 683 kcal；未按儲存，關閉後日記仍無紀錄。同一照片的兩次辨識對中央食材分別假設豆腐與鮭魚，說明分類與份量仍需人工確認，不能將此測試當作估算準確度證據。
