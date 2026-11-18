@@ -1,0 +1,20 @@
+[Unit]
+Description=WeightApp private journal
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/weightapp
+EnvironmentFile=%h/.config/weightapp/runtime.env
+ExecStart=/usr/bin/node server/index.mjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+MemoryMax=512M
+CPUQuota=50%
+TasksMax=64
+LimitNOFILE=1024
+
+[Install]
+WantedBy=default.target
