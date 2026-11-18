@@ -10,7 +10,7 @@ npm run build
 # No existing routes or unrelated units are changed.
 archive=$(mktemp -t weightapp.XXXXXX)
 trap 'rm -f "$archive"' EXIT
-COPYFILE_DISABLE=1 tar -czf "$archive" package.json package-lock.json server scripts dist
+COPYFILE_DISABLE=1 tar -czf "$archive" package.json package-lock.json server shared scripts dist
 scp "$archive" "$remote:/tmp/weightapp-release.tar.gz"
 ssh "$remote" bash -s -- "$owner" "$https_port" <<'REMOTE'
 set -euo pipefail

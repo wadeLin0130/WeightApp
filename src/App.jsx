@@ -10,6 +10,7 @@ import {
 
 import { api } from './api';
 import RecordEditor from './RecordEditor';
+import MealRecommendation from './MealRecommendation';
 import PrivateControls from './PrivateControls';
 import TrendChart from './Trends.jsx';
 
@@ -521,6 +522,7 @@ export default function App() {
           <p className="text-xs opacity-70">碳水 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.carbs || 0), 0))} g · 脂肪 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.fat || 0), 0))} g</p>
           <button className="primary-button" disabled={isSyncing} onClick={() => { photoDateRef.current = dateStr; homePhotoRef.current.click(); }}><Camera size={18}/>{isSyncing ? '處理照片中…' : '拍照／選擇照片'}</button>
           <button className="soft-button w-full" onClick={() => setModalState({ view: 'calc', category: 'diet', dateStr })}>手動紀錄飲食</button>
+          {dateStr === todayStr && <button className="soft-button w-full" onClick={() => setModalState({ view: 'recommend' })}>推薦下一餐</button>}
         </div>
         <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
           <div className="relative z-10 flex justify-between items-start">
@@ -616,6 +618,12 @@ export default function App() {
           </div>
         </ModalLayout>
       );
+    }
+
+    if (view === 'recommend') {
+      return <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title="推薦下一餐">
+        <MealRecommendation onSelect={(meal, date) => setModalState({ view: 'calc', category: 'diet', dateStr: date, item: { content: meal.name, items: meal.items, ...meal.totals } })}/>
+      </ModalLayout>;
     }
 
     if (view === 'datepicker') {

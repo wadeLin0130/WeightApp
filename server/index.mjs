@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname } from 'node:path';
 import { db, state, transaction, normalizeDay, checkDate, photo, photosDir, makeBackup } from './data.mjs';
-import { analyze, models, aiStatus } from './ai.mjs';
+import { recommendationContext } from '../shared/meal-planning.mjs';
+import { analyze, models, aiStatus, recommend } from './ai.mjs';
 const port = Number(process.env.PORT || 3107);
 const origin = process.env.WEIGHTAPP_ORIGIN;
 const owner = process.env.WEIGHTAPP_OWNER;
@@ -75,6 +76,17 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/api/backup' && req.method === 'POST') { await makeBackup(); return json(res, 200, { ok: true }); }
     if (url.pathname === '/api/ai/status' && req.method === 'GET') return json(res, 200, await aiStatus());
     if (url.pathname === '/api/ai/models' && req.method === 'GET') return json(res, 200, await models());
+    if (url.pathname === '/api/recommendation-context' && req.method === 'GET') {
+      const data = state();
+      return json(res, 200, recommendationContext(data.records, data.profile, url.searchParams.get('timeZone')));
+    }
+    if (url.pathname === '/api/ai/recommend' && req.method === 'POST') {
+      const input = await parse(req), data = state();
+      const context = recommendationContext(data.records, data.profile, input.timeZone);
+      const controller = new AbortController();
+      res.once('close', () => controller.abort());
+      return json(res, 200, await recommend({ context, mode: input.mode, preferences: input.preferences, adjustment: input.adjustment, previousMeals: input.previousMeals, model: data.profile.aiModel || process.env.WEIGHTAPP_MODEL, signal: controller.signal }));
+    }
     if (url.pathname === '/api/ai/analyze' && req.method === 'POST') {
       const input = await parse(req); return json(res, 200, await analyze({ ...input, model: input.model || state().profile.aiModel || process.env.WEIGHTAPP_MODEL }));
     }
@@ -93,8 +105,9 @@ const server = createServer(async (req, res) => {
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml' };
     res.writeHead(200, { 'Content-Type': types[extname(path)] || 'application/octet-stream' }); res.end(req.method === 'HEAD' ? undefined : data);
   } catch (e) {
+    if (res.destroyed) return;
     // Never log request bodies, credentials or upstream error payloads.
-    json(res, e.code === 'ENOENT' ? 404 : 400, { error: e.code === 'ENOENT' ? '找不到檔案' : e.message?.startsWith('ChatGPT') || !e.code ? e.message : '無法完成操作，請稍後再試' });
+    json(res, e.code === 'ENOENT' ? 404 : 400, { error: e.code === 'ENOENT' ? '找不到檔案' : e.message?.startsWith('ChatGPT') || e.message?.startsWith('AI ') || !e.code ? e.message : '無法完成操作，請稍後再試' });
   }
 });
 server.requestTimeout = 130000;

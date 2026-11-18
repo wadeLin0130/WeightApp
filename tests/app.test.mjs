@@ -33,6 +33,10 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     const invalid = await req('/api/profile', 'PUT', { calorieGoal: -1 }); assert.equal(invalid.status, 400, JSON.stringify(invalid));
     assert.equal((await req('/api/profile', 'PUT', { calorieGoal: 2150, proteinGoal: 140, weightGoal: 90, aiModel: 'test-model' })).status, 200);
     assert.equal((await req('/api/ai/status')).data.model, 'test-model');
+    const planning = await req('/api/recommendation-context?timeZone=UTC');
+    assert.equal(planning.status, 200);
+    assert.deepEqual(planning.data.remaining, { calories: 2150, protein: 140 });
+    assert.equal((await req('/api/ai/recommend', 'POST', { timeZone: 'UTC', mode: 'invalid' })).data.error, '請選擇外食或自煮');
     const original = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#ffcc00' } }).jpeg().withExif({ IFD0: { Artist: 'should be removed' } }).toBuffer();
     const uploaded = await req('/api/photos', 'POST', original); assert.equal(uploaded.status, 201);
     const image = uploaded.data.image;
