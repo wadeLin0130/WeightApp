@@ -1,7 +1,9 @@
 export async function api(path, options = {}) {
-  const r = await fetch(path, { ...options, headers: { ...(typeof options.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...options.headers } });
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error || '操作失敗，請稍後再試');
+  let r;
+  try { r = await fetch(path, { ...options, headers: { ...(typeof options.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...options.headers } }); }
+  catch { throw new Error('無法連線到伺服器，資料尚未儲存。請保留表單並重試。'); }
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data) throw new Error(data?.error || '伺服器暫時無法完成操作，資料尚未儲存。請保留表單並重試。');
   return data;
 }
 export function download(data, filename) {

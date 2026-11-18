@@ -211,6 +211,32 @@ function DashboardDatePicker({ initialDate, onSelect, isLarge }) {
   );
 }
 
+const ModalLayout = ({ title, onBack, children, isLarge, onClose }) => {
+  const s = (n, l) => isLarge ? l : n;
+  return (
+      <div 
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        onClick={() => onClose()} 
+      >
+        <div 
+          className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-5 sm:p-6')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] flex flex-col relative`}
+          onClick={(e) => e.stopPropagation()} 
+        >
+          <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-5 pb-2')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10 shrink-0`}>
+            <div className={`flex items-center ${s('gap-2', 'gap-3')} min-w-0`}>
+              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><ChevronLeft className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/></button>}
+              <h2 className={`${s('text-[13px] font-medium', 'text-[16px] font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest truncate`}>{title}</h2>
+            </div>
+            <button onClick={() => onClose()} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><X className={`${s('w-4 h-4', 'w-5 h-5')}`} /></button>
+          </div>
+          <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2 pb-6">
+            {children}
+          </div>
+        </div>
+      </div>
+  );
+};
+
 // --- 主要應用程式 ---
 export default function App() {
   const [loaded, setLoaded] = useState(false);
@@ -238,6 +264,22 @@ export default function App() {
   });
 
   const homeSwipeRef = useRef(null);
+  const homePhotoRef = useRef(null);
+  const photoDateRef = useRef(null);
+
+  const uploadHomePhoto = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    setIsSyncing(true);
+    try {
+      if (file.size > 10 * 1024 * 1024) throw new Error('照片上限 10 MB');
+      const { image } = await api('/api/photos', { method: 'POST', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+      setModalState({ view: 'calc', category: 'diet', item: { image }, dateStr: photoDateRef.current });
+      setSaveError('');
+    } catch (e) { setSaveError(e.message); }
+    finally { setIsSyncing(false); }
+  };
 
   const isLarge = activeProfile.visualFriendly || false;
   const themeMode = activeProfile.themeMode || 'auto';
@@ -498,7 +540,8 @@ export default function App() {
           <p className="text-sm">攝取熱量 <strong>{totalIntake}</strong> / {activeProfile.calorieGoal || 2150} kcal</p>
           <p className="text-sm">蛋白質 <strong>{Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.protein || 0), 0) * 10) / 10}</strong> / {activeProfile.proteinGoal || 140} g</p>
           <p className="text-xs opacity-70">碳水 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.carbs || 0), 0))} g · 脂肪 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.fat || 0), 0))} g</p>
-          <button className="primary-button" onClick={() => setModalState({ view: 'calc', category: 'diet', dateStr })}><Camera size={18}/>拍照／新增飲食</button>
+          <button className="primary-button" disabled={isSyncing} onClick={() => { photoDateRef.current = dateStr; homePhotoRef.current.click(); }}><Camera size={18}/>{isSyncing ? '處理照片中…' : '拍照／選擇照片'}</button>
+          <button className="soft-button w-full" onClick={() => setModalState({ view: 'calc', category: 'diet', dateStr })}>手動紀錄飲食</button>
         </div>
         <div className={`bg-[#EFECE7] dark:bg-[#252525] rounded-3xl ${s('p-6', 'p-6')} shadow-sm border border-[#E8E4DF] dark:border-[#3A3A3A] relative overflow-hidden`}>
           <div className="relative z-10 flex justify-between items-start">
@@ -583,32 +626,9 @@ export default function App() {
     const isDiet = category === 'diet';
     const isEx = category === 'exercise';
 
-    const ModalLayout = ({ title, onBack, children }) => (
-      <div 
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#4A4A4A]/20 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={() => setModalState(null)} 
-      >
-        <div 
-          className={`bg-white dark:bg-[#1E1E1E] w-full max-w-md rounded-t-[2rem] sm:rounded-[2rem] ${s('p-6', 'p-5 sm:p-6')} shadow-2xl animate-in slide-in-from-bottom-8 border border-[#F0ECE7] dark:border-[#333333] max-h-[90vh] flex flex-col relative`}
-          onClick={(e) => e.stopPropagation()} 
-        >
-          <div className={`flex justify-between items-center ${s('mb-6 pb-2', 'mb-5 pb-2')} sticky top-0 bg-white dark:bg-[#1E1E1E] z-10 shrink-0`}>
-            <div className={`flex items-center ${s('gap-2', 'gap-3')} min-w-0`}>
-              {onBack && <button onClick={onBack} className="p-1.5 -ml-1.5 text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><ChevronLeft className={`${s('w-5 h-5', 'w-6 h-6')} stroke-[1.5]`}/></button>}
-              <h2 className={`${s('text-[13px] font-medium', 'text-[16px] font-bold')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest truncate`}>{title}</h2>
-            </div>
-            <button onClick={() => setModalState(null)} className="p-1.5 bg-[#F9F8F6] dark:bg-[#2A2A2A] rounded-full text-[#A89F91] dark:text-[#888888] active:scale-90 shrink-0"><X className={`${s('w-4 h-4', 'w-5 h-5')}`} /></button>
-          </div>
-          <div className="overflow-y-auto custom-scrollbar flex-1 -mx-2 px-2 pb-6">
-            {children}
-          </div>
-        </div>
-      </div>
-    );
-
     if (view === 'confirm_leave') {
       return (
-        <ModalLayout title="尚未儲存變更">
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title="尚未儲存變更">
           <p className={`${s('text-xs', 'text-sm')} text-[#8C8477] dark:text-[#A1988B] mb-6 text-center tracking-wide`}>有未儲存的變更，是否儲存？</p>
           <div className="flex flex-col gap-3">
             <button onClick={async () => { try { await handleSaveSettings(); } catch { return; } setActiveTab(modalState.pendingTab); setModalState(null); }} className={`w-full bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] rounded-xl font-bold tracking-widest active:scale-95 transition-all ${s('py-3.5 text-sm', 'py-4 text-[15px]')}`}>儲存</button>
@@ -621,7 +641,7 @@ export default function App() {
 
     if (view === 'datepicker') {
       return (
-        <ModalLayout title="選擇日期">
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title="選擇日期">
           <DashboardDatePicker initialDate={targetDate} onSelect={(d) => { setTargetDate(d); setModalState(null); }} isLarge={isLarge} />
         </ModalLayout>
       );
@@ -635,7 +655,7 @@ export default function App() {
       }[category];
 
       return (
-        <ModalLayout title={catConfig.name}>
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title={catConfig.name}>
           <div className="mb-20">
             {arr.map(record => (
               <SwipeableRecord
@@ -661,7 +681,7 @@ export default function App() {
       const cards = (isDiet ? activeProfile.dietCards : activeProfile.exerciseCards) || [];
       const colorClass = isDiet ? 'text-[#9AA899] dark:text-[#9AA899] bg-[#EEF2ED] dark:bg-[#222B21] border-[#D6E0D5] dark:border-[#2C3B2A]' : 'text-[#C4A495] dark:text-[#C4A495] bg-[#F7EFEA] dark:bg-[#2D2520] border-[#E8D9D1] dark:border-[#3D302A]';
       return (
-        <ModalLayout title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
           {isDiet && (profile.favorites || []).length > 0 && <div className="mb-5 space-y-2"><p className="text-xs">常用食物／餐點</p>{profile.favorites.map(f => <div className="flex gap-2" key={f.id}><button className="soft-button flex-1" onClick={() => setModalState({ view: 'calc', category, item: { ...f, id: undefined }, dateStr: operateDate })}>{f.content} · {f.calories} kcal</button><button aria-label={'刪除常用餐點 ' + f.content} onClick={() => updateProfile({ favorites: profile.favorites.filter(x => x.id !== f.id) }).catch(() => {})}><Trash2 size={18}/></button></div>)}</div>}
           <div className={`grid grid-cols-3 ${s('gap-3', 'gap-2 sm:gap-3')}`}>
             {cards.map(card => (
@@ -681,7 +701,7 @@ export default function App() {
 
     if (view === 'calc') {
       return (
-        <ModalLayout title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
           <RecordEditor 
             onDelete={item?.id ? () => handleDeleteData(category, item.id).then(() => setModalState(null)) : undefined} category={category} item={item} isDiet={isDiet} isEx={isEx} isLarge={isLarge}
             onFavorite={async data => updateProfile({ favorites: [...(profile.favorites || []), { ...data, id: crypto.randomUUID() }] })} onSave={(dataToSave) => handleSaveData(category, dataToSave)} profile={activeProfile}
@@ -694,7 +714,7 @@ export default function App() {
       const availableIcons = isDiet ? ['Coffee','Apple','Pizza','Carrot','Fish','Beef','Utensils'] : ['Activity','Dumbbell','Flame','Bike','Shuttlecock','HeartPulse','Target'];
       const namePlaceholder = isDiet ? '例如：拿鐵' : '例如：跳繩';
       return (
-        <ModalLayout title="新增專屬卡片" onBack={() => setModalState({view: 'select', category, dateStr: operateDate})}>
+        <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title="新增專屬卡片" onBack={() => setModalState({view: 'select', category, dateStr: operateDate})}>
           <form onSubmit={async (e) => {
             e.preventDefault();
             const name = e.target.cardName.value;
@@ -761,6 +781,7 @@ export default function App() {
         <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} hasDot={showSettingsDot} />
       </nav>
 
+      <input type="file" accept="image/*" className="hidden" ref={homePhotoRef} onChange={uploadHomePhoto} />
       {renderModals()}
     </div>
   );
