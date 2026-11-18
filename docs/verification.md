@@ -18,7 +18,7 @@ Linux 實測：Node 22.22.1、npm 9.2.0、Docker 29.6.1（本 App 未使用）�
 | SQLite | 正式庫 integrity_check = ok |
 | 未授權保護 | 隔離測試缺少／錯誤擁有者的資料及匯出請求回 403；正式端未帶 Serve 身分的 localhost 請求回 403。未借用另一台未授權實體裝置測試 |
 | iPhone Safari | 已提供實際 HTTPS 網址，等待使用者手機開啟與拍照／選圖確認；不可聲稱實機通過 |
-| AI 授權與照片 PoC | 官方 SIWC flow 實際到達帳號、工作區與最終方案額度同意畫面；等待擁有者完成。尚無 WeightApp 方案 Token，未執行成功照片 PoC，不宣稱模型或圖片權限已確認 |
+| AI 授權與照片 PoC | 官方 SIWC flow 實際在同意頁回覆 3p_delegated_access_policy_denied，畫面指出組織限制 OSS 使用 ChatGPT 方案，需管理員檢查全域管理員主控台的外部存取／OSS／使用 ChatGPT 方案及方案、工作區、個別應用程式限制。尚未確認此次選定工作區，不能推定個人方案也不可用。未收到回呼或取得 WeightApp Token；照片 PoC 尚未成功，保留手動紀錄及 AI Provider 介面，不改用付費 API或非官方端點 |
 | Firebase 歷史遷移 | 缺少原專案環境設定／原版登入 session，尚未取得完整舊紀錄；已提供唯讀快取匯出、預覽、備份、保留現有日期的 JSON 匯入。未刪除雲端資料 |
 
 官方文件已核對：SIWC OSS 概覽、登入、VM、模型與推論、app-server、preview limitations。採用直接 Responses OAuth 而非 app-server，因為餐點分析不需要任何代理執行工具；無 API key、無自動購買、無付費 fallback。只有 SSE 完成且資料驗證通過才回傳估算，仍需使用者確認儲存。未安裝本機 LLM。
