@@ -13,23 +13,9 @@ import RecordEditor from './RecordEditor';
 import PrivateControls from './PrivateControls';
 import TrendChart from './Trends.jsx';
 
-// --- 本地儲存封裝 ---
-const safeStorage = {
-  get: (key) => {
-    try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : null; } 
-    catch { return null; }
-  },
-  set: (key, val) => {
-    try { localStorage.setItem(key, JSON.stringify(val)); } 
-    catch { /* Storage is optional for display preferences. */ }
-  }
-};
-
 const DEFAULT_PROFILE = {
   calorieGoal: 2150, proteinGoal: 140, weightGoal: 90, favorites: [],
-  height: '', birthYear: '', gender: 'female', customTDEE: '', 
   visualFriendly: false, themeMode: 'auto',
-  showTDEE: true, showBMR: false,
   dietCards: [
     { id: 'custom', name: '自行輸入', icon: 'Plus' }, { id: 'bf', name: '早餐', icon: 'Coffee' },
     { id: 'lc', name: '午餐', icon: 'Utensils' }, { id: 'dn', name: '晚餐', icon: 'Utensils' },
@@ -257,12 +243,6 @@ export default function App() {
   const activeProfile = draftProfile || profile;
   const isProfileDirty = draftProfile !== null;
 
-  const [showSettingsDot, setShowSettingsDot] = useState(() => {
-    const hasViewed = safeStorage.get('wt_settings_viewed');
-    const isMissingData = !profile.birthYear || !profile.height;
-    return !hasViewed && isMissingData;
-  });
-
   const homeSwipeRef = useRef(null);
   const homePhotoRef = useRef(null);
   const photoDateRef = useRef(null);
@@ -437,7 +417,6 @@ export default function App() {
   };
 
   const handleTabClick = (tab) => {
-    if (tab === 'settings') { setShowSettingsDot(false); safeStorage.set('wt_settings_viewed', true); }
     if (activeTab === 'settings' && isProfileDirty && tab !== 'settings') {
       setModalState({ view: 'confirm_leave', pendingTab: tab });
     } else {
@@ -767,7 +746,7 @@ export default function App() {
       </header>
 
       {saveError && <div role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{saveError}<button className="soft-button mt-2" onClick={() => location.reload()}>重新載入</button></div>}
-      {!loaded ? <p className="p-6">正在載入私人紀錄…</p> : <main className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar">
+      {!loaded ? <p className="p-6">載入中…</p> : <main className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar">
         {activeTab === 'home' && renderHome()}
         {activeTab === 'calendar' && <CalendarView records={records} viewMode={modalState?.category || 'weight'} onSelectDate={(d, mode) => { openCategoryFlow(mode, d); }} isLarge={isLarge} />}
         {activeTab === 'trend' && <TrendChart records={records} isLarge={isLarge} />}
@@ -778,7 +757,7 @@ export default function App() {
         <NavButton active={activeTab === 'home'} onClick={() => handleTabClick('home')} icon={Home} label="首頁" isLarge={isLarge} />
         <NavButton active={activeTab === 'calendar'} onClick={() => handleTabClick('calendar')} icon={CalendarIcon} label="月曆" isLarge={isLarge} />
         <NavButton active={activeTab === 'trend'} onClick={() => handleTabClick('trend')} icon={TrendingUp} label="趨勢" isLarge={isLarge} />
-        <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} hasDot={showSettingsDot} />
+        <NavButton active={activeTab === 'settings'} onClick={() => handleTabClick('settings')} icon={Settings} label="設定" isLarge={isLarge} />
       </nav>
 
       <input type="file" accept="image/*" className="hidden" ref={homePhotoRef} onChange={uploadHomePhoto} />
@@ -788,11 +767,10 @@ export default function App() {
 }
 
 // 底部按鈕
-function NavButton({ active, onClick, icon: Icon, label, isLarge, hasDot }) {
+function NavButton({ active, onClick, icon: Icon, label, isLarge }) {
   const s = (n, l) => isLarge ? l : n;
   return (
     <button onClick={onClick} className={`relative flex flex-col items-center justify-center ${s('gap-1 p-2 w-16', 'gap-1 p-2 w-[70px]')} bg-transparent border-none transition-all duration-300 ${active ? 'text-[#8C8477] dark:text-[#A1988B] -translate-y-1' : 'text-[#C2BCB6] dark:text-[#666666] hover:text-[#A89F91] dark:hover:text-[#888888]'}`}>
-      {hasDot && <div className={`absolute ${s('top-1.5 right-3', 'top-1.5 right-4')} w-[9px] h-[9px] bg-[#B86C65] rounded-full border-[1.5px] border-[#F7F5F2] dark:border-[#121212] z-10 animate-pulse`} />}
       <Icon className={`${s('w-[18px] h-[18px]', 'w-6 h-6')} ${active ? 'stroke-[2]' : 'stroke-[1.5]'}`} />
       <span className={`${s('text-[9px] font-medium', 'text-[11px] font-bold')} tracking-widest m-0`}>{label}</span>
       <div className={`${s('w-1 h-1 mt-0.5', 'w-1.5 h-1.5 mt-1')} rounded-full bg-[#8C8477] dark:bg-[#A1988B] transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-0'}`} />
@@ -939,7 +917,6 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
           </div>
         </div>
       </div>
-      <p className={`text-center text-[#C2BCB6] dark:text-[#666666] tracking-widest ${s('text-[9px] mt-6 font-light', 'text-[11px] mt-8 font-medium')}`}>點擊日期即可查看或編輯紀錄，左右滑動切換月份</p>
     </div>
   );
 }
@@ -950,29 +927,7 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, isLarge }) {
   const themeMode = profile.themeMode || 'auto';
   return (
     <div className={`p-6 animate-in fade-in duration-500 ${s('space-y-5 pb-28', 'space-y-5 pb-32')}`}>
-      <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-5', 'p-6 space-y-5')}`}>
-        <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><Settings className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 個人資料設定</h2>
-        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
-          <div className={s('space-y-2', 'space-y-2')}>
-            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>GENDER</label>
-            <div className={`flex ${s('gap-2', 'gap-2')}`}>
-              <button onClick={() => onChangeSetting({ gender: 'male' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'male' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>男</button>
-              <button onClick={() => onChangeSetting({ gender: 'female' })} className={`flex-1 rounded-xl border transition-all ${s('py-2.5 text-[11px]', 'py-3 text-[14px] font-medium')} ${profile.gender === 'female' ? 'bg-[#EFECE7] dark:bg-[#333333] border-[#D6D0C4] dark:border-[#4A4A4A] text-[#5C5C5C] dark:text-[#D1D1D1]' : 'border-[#F0ECE7] dark:border-[#333333] text-[#C2BCB6] dark:text-[#666666]'}`}>女</button>
-            </div>
-          </div>
-          <div className={s('space-y-2', 'space-y-2')}>
-            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>出生年份</label>
-            <input type="number" placeholder="例如: 1990" value={profile.birthYear || ''} onChange={(e) => onChangeSetting({ birthYear: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 placeholder:text-[#C2BCB6] dark:placeholder:text-[#666666] ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
-          </div>
-        </div>
-        <div className={`grid grid-cols-2 ${s('gap-4', 'gap-4')}`}>
-          <div className={s('space-y-2', 'space-y-2')}>
-            <label className={`${s('text-[9px]', 'text-[11px] font-bold')} tracking-widest text-[#8C8477] dark:text-[#A1988B]`}>HEIGHT (cm)</label>
-            <input type="number" value={profile.height || ''} onChange={(e) => onChangeSetting({ height: e.target.value })} className={`w-full bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1] text-center min-w-0 ${s('p-2.5 text-xs', 'p-3 text-[14px] font-medium')}`} />
-          </div>
-
-        </div>
-      </div>
+      <PrivateControls profile={profile} onChangeSetting={onChangeSetting} />
 
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6 space-y-4', 'p-6 space-y-4')}`}>
         <h2 className={`${s('text-xs font-medium mb-4', 'text-[14px] font-bold mb-4')} text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest flex items-center gap-2`}><MoonIcon className={`${s('w-4 h-4', 'w-5 h-5')} text-[#C2BCB6] dark:text-[#666666] stroke-[1.5]`} /> 外觀主題</h2>
@@ -990,7 +945,6 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, isLarge }) {
           </div>
           <div className="min-w-0">
             <h3 className={`font-medium text-[#5C5C5C] dark:text-[#D1D1D1] tracking-widest truncate ${s('text-xs', 'text-[14px] font-bold')}`}>視覺友善模式</h3>
-            <p className={`${s('text-[10px] mt-1', 'text-[11px] mt-1.5')} text-[#A89F91] dark:text-[#888888] font-medium tracking-wide truncate`}>放大文字與圖示尺寸</p>
           </div>
         </div>
         <button onClick={() => onChangeSetting({ visualFriendly: !profile.visualFriendly })} className={`relative rounded-full transition-colors duration-300 shrink-0 ml-2 ${s('w-11 h-6', 'w-12 h-7')} ${profile.visualFriendly ? 'bg-[#8C8477] dark:bg-[#A1988B]' : 'bg-[#E8E4DF] dark:bg-[#4A4A4A]'}`}>
@@ -1001,11 +955,11 @@ function SettingsView({ profile, onChangeSetting, onSave, isDirty, isLarge }) {
       <div className={`bg-white dark:bg-[#1E1E1E] rounded-3xl border border-[#F0ECE7] dark:border-[#333333] ${s('p-6', 'p-6')} mb-8 shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
         <button onClick={onSave} disabled={!isDirty} className={`w-full rounded-xl font-bold tracking-widest transition-all flex items-center justify-center gap-2 ${s('py-3.5 text-[13px]', 'py-4 text-[15px]')} ${isDirty ? 'bg-[#8C8477] dark:bg-[#A1988B] text-white dark:text-[#121212] active:scale-95 shadow-md' : 'bg-[#F9F8F6] dark:bg-[#2A2A2A] text-[#C2BCB6] dark:text-[#666666] cursor-not-allowed border border-[#E8E4DF] dark:border-[#3A3A3A]'}`}>
           <CheckCircle2 className={`${s('w-4 h-4', 'w-5 h-5')} stroke-[1.5] ${isDirty ? '' : 'opacity-50'}`} />
-          {isDirty ? '儲存所有變更' : '已儲存最新設定'}
+          {isDirty ? '儲存設定' : '已儲存'}
         </button>
       </div>
 
-      <PrivateControls profile={profile} onChangeSetting={onChangeSetting} />
+
     </div>
   );
 }

@@ -6,7 +6,7 @@
 
 首頁顯示每日熱量、蛋白質、營養素、最近體重與飲食／運動清單。點「拍照／選擇照片」，拍照或選圖，按 AI 辨識（需另行授權），確認各食材重量與營養數值後儲存。也可直接手動輸入並存成常用餐點，在「飲食 → 新增」快速重用。點紀錄可修改或刪除；原本月曆及滑動刪除保留。
 
-設定預設 2,150 kcal、蛋白質 140 g、階段體重 90 kg，可自行修改後按「儲存所有變更」。運動消耗不加回每日可吃熱量。重訓支援動作、重量、組、次、備註；有氧支援名稱、分鐘、選填活動熱量及平均心率。
+設定預設 2,150 kcal、蛋白質 140 g、階段體重 90 kg，可自行修改後按「儲存設定」。運動消耗不加回每日可吃熱量。重訓支援動作、重量、組、次、備註；有氧支援名稱、分鐘、選填活動熱量及平均心率。
 
 趨勢顯示體重與七個日曆日移動平均、每日熱量、每日蛋白質、每週運動紀錄筆數。沒有紀錄的飲食日期不填零；舊紀錄缺少蛋白質不自動估算。
 
@@ -75,7 +75,7 @@ scp ~/.config/weightapp/chatgpt.json user@tailnet-host:.config/weightapp/chatgpt
 ssh user@tailnet-host 'chmod 600 ~/.config/weightapp/chatgpt.json'
 ```
 
-部署腳本已為 VM 產生獨立 host ID，勿複製 Mac 的 `host-id`。轉移後由 VM 獨佔 refresh；Mac 不再使用或刷新那份 session，可刪除本機憑證副本（不呼叫 revoke）。VM 下次重新授權應使用 VM host ID，可透過 SSH loopback forwarding 在 Mac 瀏覽器完成。Token 失效時重新授權，不貼到聊天。設定頁可查看授權帳號及工作區綁定的註冊 ID，按「取得此帳號的模型」，選模型並儲存。模型目錄只是目錄；照片 PoC 成功才算驗證圖片與結構化輸出可用。
+部署腳本已為 VM 產生獨立 host ID，勿複製 Mac 的 `host-id`。轉移後由 VM 獨佔 refresh；Mac 不再使用或刷新那份 session，可刪除本機憑證副本（不呼叫 revoke）。VM 下次重新授權應使用 VM host ID，可透過 SSH loopback forwarding 在 Mac 瀏覽器完成。Token 失效時重新授權，不貼到聊天。辨識模型由伺服器設定管理（`profile.aiModel` 或 `WEIGHTAPP_MODEL`）。
 
 最小 PoC（已授權的主機上）：
 
@@ -84,7 +84,7 @@ ssh user@tailnet-host 'chmod 600 ~/.config/weightapp/chatgpt.json'
 node scripts/ai-poc.mjs /secure/path/food.jpg exact-model-slug /secure/path/poc-result.json
 ```
 
-回傳經 JSON Schema 請求與後端數值／加總驗證的食材陣列、重量、熱量、三大營養素、整餐合計及不確定假設。必須等到 SSE `response.completed` 才視為成功；額度不足、拒絕、串流中斷與格式錯誤都顯示錯誤並保留手動紀錄。只使用同意的方案額度；實際額度、帳號及模型權限由 OpenAI 決定，尚未授權時不宣稱辨識成功。
+回傳經 JSON Schema 請求與後端數值／加總驗證的食材陣列、重量、熱量、三大營養素、整餐合計。必須等到 SSE `response.completed` 才視為成功；額度不足、拒絕、串流中斷與格式錯誤都顯示錯誤並保留手動紀錄。只使用同意的方案額度；實際額度、帳號及模型權限由 OpenAI 決定，尚未授權時不宣稱辨識成功。
 
 官方文件：
 

@@ -25,14 +25,14 @@ export async function readCredentials() {
 let refreshing;
 export async function accessCredentials() {
   const c = await readCredentials();
-  if (!c?.scopes?.includes('chatgpt.tokens.use.direct')) throw new Error('請先完成 WeightApp 的 Continue with ChatGPT 授權；仍可手動紀錄。');
+  if (!c?.scopes?.includes('chatgpt.tokens.use.direct')) throw new Error('AI 尚未連線');
   if (c.expires_at > Date.now() + 60000) return c;
   if (!refreshing) refreshing = (async () => {
     const r = await fetch('https://auth.openai.com/api/accounts/oauth/token', {
       method: 'POST', signal: AbortSignal.timeout(20000),
       body: new URLSearchParams({ grant_type: 'refresh_token', client_id: c.client_id, refresh_token: c.refresh_token, resource: 'https://api.openai.com/v1' }),
     });
-    if (!r.ok) throw new Error('ChatGPT 授權已失效，請重新登入；仍可手動紀錄。');
+    if (!r.ok) throw new Error('AI 授權已失效，請重新登入。');
     const t = await r.json();
     const next = { ...c, ...t, scopes: t.scope ? t.scope.split(' ') : c.scopes, expires_at: Date.now() + t.expires_in * 1000 };
     await saveJSON(credentialsPath, next);
