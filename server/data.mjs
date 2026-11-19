@@ -44,7 +44,7 @@ export async function normalizeDay(day) {
       const r = { ...record, id: String(record.id || '') };
       if (!r.id || r.id.length > 100 || ids.has(r.id)) throw new Error('紀錄 ID 重複或缺漏'); ids.add(r.id);
       for (const k of ['value', 'calories', 'protein', 'carbs', 'fat', 'duration', 'weightKg', 'sets', 'reps', 'heartRate']) {
-        if (r[k] !== undefined && r[k] !== '') { const n = Number(r[k]); if (!Number.isFinite(n) || n < 0 || n > 100000) throw new Error('數值須為非負數'); r[k] = n; }
+        if (r[k] != null && r[k] !== '') { const n = Number(r[k]); if (!Number.isFinite(n) || n < 0 || n > 100000) throw new Error('數值須為非負數'); r[k] = n; }
       }
       for (const k of ['content', 'type', 'notes', 'assumptions']) if (r[k] != null && (typeof r[k] !== 'string' || r[k].length > 10000)) throw new Error('文字過長或格式錯誤');
       if (r.image?.startsWith('data:image/')) {

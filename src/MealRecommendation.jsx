@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from './api';
+import { formatNumber, nutritionSummary } from './numbers';
 import { preparationLabels } from '../shared/meal-planning.mjs';
 export default function MealRecommendation({ onSelect }) {
   const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
@@ -31,7 +32,7 @@ export default function MealRecommendation({ onSelect }) {
   return <div className="space-y-4">
     {!context && !error && <p className="text-sm">載入中…</p>}
     {context && <>
-      <p className="text-sm">剩餘 {context.remaining.calories} kcal · 蛋白質 {context.remaining.protein} g</p>
+      <p className="text-sm">剩餘 {formatNumber(context.remaining.calories)} kcal · 蛋白質 {formatNumber(context.remaining.protein)} g</p>
       <div className="grid grid-cols-2 gap-2">{Object.entries(preparationLabels).map(([key, label]) => <button key={key} type="button" disabled={busy} aria-pressed={mode === key} className={mode === key ? 'primary-button' : 'soft-button'} onClick={() => { if (key === mode) return; setMode(key); setMeals([]); setAdjustment(''); setError(''); }}>{label}</button>)}</div>
       {context.remaining.calories <= 0 ? <p className="text-sm">熱量目標已達成</p> : !meals.length && <form className="space-y-3" onSubmit={generate}>
         <label className="field">需求（選填）<input value={preferences} maxLength={1000} disabled={busy} onChange={e => setPreferences(e.target.value)} placeholder="例如：想吃超商、家裡有雞蛋和豆腐"/></label>
@@ -39,8 +40,8 @@ export default function MealRecommendation({ onSelect }) {
       </form>}
       {meals.map((meal, index) => <section key={index} className="space-y-3 border-t border-[#d6d0c4] pt-4">
         <h3 className="text-base font-medium">{meal.name}</h3>
-        <ul className="space-y-1 text-sm">{meal.items.map((food, i) => <li key={i} className="flex justify-between gap-3"><span>{food.name}</span><span className="shrink-0">{food.grams} g</span></li>)}</ul>
-        <p className="text-sm">{meal.totals.calories} kcal · 蛋白質 {meal.totals.protein} g<br/>碳水 {meal.totals.carbs} g · 脂肪 {meal.totals.fat} g</p>
+        <ul className="space-y-1 text-sm">{meal.items.map((food, i) => <li key={i} className="flex justify-between gap-3"><span>{food.name}</span><span className="shrink-0">{formatNumber(food.grams)} g</span></li>)}</ul>
+        <p className="text-sm">{nutritionSummary(meal.totals)}</p>
         <button className="soft-button w-full" type="button" disabled={busy} onClick={() => onSelect(meal, context.date)}>選擇這餐</button>
       </section>)}
       {meals.length > 0 && context.remaining.calories > 0 && <form className="space-y-3 border-t border-[#d6d0c4] pt-4" onSubmit={event => generate(event, true)}>

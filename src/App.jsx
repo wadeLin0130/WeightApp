@@ -12,6 +12,9 @@ import { api } from './api';
 import RecordEditor from './RecordEditor';
 import MealRecommendation from './MealRecommendation';
 import PrivateControls from './PrivateControls';
+import NumericField from './NumericField';
+import DailyNutrition from './DailyNutrition';
+import { formatNumber, hasNumber, sumNumbers, strengthSummary, calorieValue } from './numbers';
 import TrendChart from './Trends.jsx';
 
 const DEFAULT_PROFILE = {
@@ -96,7 +99,7 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
     }
   };
 
-  const displayValue = record.calories ?? record.value ?? 0;
+  const displayValue = hasNumber(record.calories) ? record.calories : record.value;
   const hasImage = !!record.image;
 
   return (
@@ -125,8 +128,8 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
             <span className={`${s('text-xs', 'text-[15px]')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1] truncate min-w-0`}>
               {(isDiet || isEx) ? (record.content || record.type) : '紀錄數值'}
             </span>
-            {isEx && record.duration && (
-              <span className={`${s('text-[10px]', 'text-[12px]')} text-[#A89F91] dark:text-[#888888] font-medium truncate mt-0.5`}>持續 {record.duration} 分鐘</span>
+            {isEx && hasNumber(record.duration) && (
+              <span className={`${s('text-[10px]', 'text-[12px]')} text-[#A89F91] dark:text-[#888888] font-medium truncate mt-0.5`}>持續 {formatNumber(record.duration)} 分鐘</span>
             )}
           </div>
         </div>
@@ -136,8 +139,8 @@ const SwipeableRecord = ({ record, onDelete, onEdit, isDiet, isEx, catConfig, is
           </div>
         )}
         <div className="flex items-baseline gap-1 pointer-events-none shrink-0 pl-2">
-          <span className={`${s('text-sm', 'text-lg')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{displayValue}</span>
-          {Number(displayValue) > 0 && <span className={`${s('text-[9px]', 'text-[11px]')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
+          <span className={`${s('text-sm', 'text-lg')} font-medium text-[#5C5C5C] dark:text-[#D1D1D1]`}>{hasNumber(displayValue) ? formatNumber(displayValue, catConfig.unit === 'kg' ? 1 : 0) : ''}</span>
+          {hasNumber(displayValue) && <span className={`${s('text-[9px]', 'text-[11px]')} text-[#A89F91] dark:text-[#888888] font-medium`}>{catConfig.unit}</span>}
         </div>
       </div>
     </div>
@@ -494,8 +497,7 @@ export default function App() {
       }
     }
 
-    const totalWater = pArrWater.reduce((sum, i) => sum + Number(i.value), 0);
-    const totalIntake = pArrDiet.reduce((sum, d) => sum + (Number(d.calories ?? d.value) || 0), 0);
+    const totalWater = sumNumbers(pArrWater, 'value');
 
     let weightChange = null;
     let prevWeight = null;
@@ -517,9 +519,7 @@ export default function App() {
     return (
       <div key={dateStr} inert={dateStr !== targetDate} aria-hidden={dateStr !== targetDate} className="w-1/5 shrink-0 px-6 flex flex-col gap-4">
         <div className="bg-white dark:bg-[#1E1E1E] rounded-3xl p-5 space-y-3 border border-[#E8E4DF] dark:border-[#3A3A3A]">
-          <p className="text-sm">攝取熱量 <strong>{totalIntake}</strong> / {activeProfile.calorieGoal || 2150} kcal</p>
-          <p className="text-sm">蛋白質 <strong>{Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.protein || 0), 0) * 10) / 10}</strong> / {activeProfile.proteinGoal || 140} g</p>
-          <p className="text-xs opacity-70">碳水 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.carbs || 0), 0))} g · 脂肪 {Math.round(pArrDiet.reduce((sum, d) => sum + Number(d.fat || 0), 0))} g</p>
+          <DailyNutrition diet={pArrDiet} calorieGoal={Number(activeProfile.calorieGoal) || 2150} proteinGoal={Number(activeProfile.proteinGoal) || 140} isLarge={isLarge}/>
           <button className="primary-button" disabled={isSyncing} onClick={() => { photoDateRef.current = dateStr; homePhotoRef.current.click(); }}><Camera size={18}/>{isSyncing ? '處理照片中…' : '拍照／選擇照片'}</button>
           <button className="soft-button w-full" onClick={() => setModalState({ view: 'calc', category: 'diet', dateStr })}>手動紀錄飲食</button>
           {dateStr === todayStr && <button className="soft-button w-full" onClick={() => setModalState({ view: 'recommend' })}>推薦下一餐</button>}
@@ -529,24 +529,24 @@ export default function App() {
             <div className="min-w-0">
               <p className={`text-[#8C8477] dark:text-[#A1988B] ${s('text-[9px] mb-1', 'text-[12px] font-bold mb-1.5')} tracking-widest font-medium`}>WEIGHT</p>
               <div className={`flex items-baseline ${s('gap-1', 'gap-1.5')}`}>
-                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{displayWeight || '--'}</span>
+                <span className={`font-light text-[#4A4A4A] dark:text-[#E8E8E8] tracking-tight text-[clamp(2.5rem,12vw,3rem)] ${s('', 'text-[clamp(3rem,15vw,4rem)]')}`}>{formatNumber(displayWeight, 1)}</span>
                 <span className={`${s('text-sm', 'text-lg font-medium')} text-[#8C8477] dark:text-[#A1988B] font-light`}>kg</span>
               </div>
               {weightChange && (
                 <div className={`inline-flex items-center ${s('mt-3 px-3 py-1 text-[10px]', 'mt-3 px-3 py-1.5 text-[12px] font-bold')} rounded-full font-medium bg-white/50 dark:bg-[#333333]/50 text-[#7A756D] dark:text-[#AAAAAA] backdrop-blur-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)]`}>
-                  較前次 {Number(weightChange) > 0 ? '+' : ''}{weightChange} kg
+                  較前次 {Number(weightChange) > 0 ? '+' : ''}{formatNumber(weightChange, 1)} kg
                 </div>
               )}
             </div>
           </div>
-          <p className="text-xs mt-3 opacity-70">階段目標 {activeProfile.weightGoal || 90} kg</p>
+          <p className="text-xs mt-3 opacity-70">階段目標 {formatNumber(activeProfile.weightGoal || 90, 1)} kg</p>
 
         </div>
 
         <div className={`grid grid-cols-2 ${s('gap-3', 'gap-3')}`}>
           {[
-            { id: 'weight', title: '體重', icon: WeightScaleIcon, val: pArrWeight.length ? `已記 ${pArrWeight[pArrWeight.length - 1].value} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
-            { id: 'water', title: '飲水', icon: Droplets, val: totalWater ? `${totalWater} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
+            { id: 'weight', title: '體重', icon: WeightScaleIcon, val: pArrWeight.length ? `已記 ${formatNumber(pArrWeight[pArrWeight.length - 1].value, 1)} kg` : '未紀錄', bg: 'bg-[#F5F2EB] dark:bg-[#2C2A25]', color: 'text-[#A89F91]' },
+            { id: 'water', title: '飲水', icon: Droplets, val: hasNumber(totalWater) ? `${formatNumber(totalWater)} ml` : '未紀錄', bg: 'bg-[#EDF1F4] dark:bg-[#1E262B]', color: 'text-[#93A3B1]' },
             { id: 'diet', title: '飲食', icon: Utensils, val: pArrDiet.length ? `已記 ${pArrDiet.length} 筆` : '未紀錄', bg: 'bg-[#EEF2ED] dark:bg-[#222B21]', color: 'text-[#9AA899]' },
             { id: 'exercise', title: '運動', icon: Flame, val: pArrEx.length ? `已記 ${pArrEx.length} 筆` : '未紀錄', bg: 'bg-[#F7EFEA] dark:bg-[#2D2520]', color: 'text-[#C4A495]' }
           ].map(card => (
@@ -561,7 +561,7 @@ export default function App() {
             </button>
           ))}
         </div>
-        <section className="space-y-2"><h2 className="text-sm">飲食與運動</h2>{[...pArrDiet.map(r => ({ ...r, category: 'diet' })), ...pArrEx.map(r => ({ ...r, category: 'exercise' }))].map(r => <button key={r.category + r.id} className="soft-button w-full justify-between text-left" onClick={() => setModalState({ view: 'calc', category: r.category, item: r, dateStr })}><span>{r.time} {r.content || r.type}{r.kind === 'strength' ? ` · ${r.weightKg || 0} kg × ${r.sets || 0} 組 × ${r.reps || 0} 次` : ''}</span><span>{r.calories || 0} kcal</span></button>)}{!pArrDiet.length && !pArrEx.length && <p className="text-xs opacity-60">尚無紀錄</p>}</section>
+        <section className="space-y-2"><h2 className="text-sm">飲食與運動</h2>{[...pArrDiet.map(r => ({ ...r, category: 'diet' })), ...pArrEx.map(r => ({ ...r, category: 'exercise' }))].map(r => <button key={r.category + r.id} className="soft-button w-full justify-between text-left" onClick={() => setModalState({ view: 'calc', category: r.category, item: r, dateStr })}><span>{r.time} {r.content || r.type}{r.kind === 'strength' && strengthSummary(r) ? ` · ${strengthSummary(r)}` : ''}</span>{hasNumber(calorieValue(r)) && <span className="shrink-0">{formatNumber(calorieValue(r))} kcal</span>}</button>)}{!pArrDiet.length && !pArrEx.length && <p className="text-xs opacity-60">尚無紀錄</p>}</section>
       </div>
     );
   };
@@ -669,7 +669,7 @@ export default function App() {
       const colorClass = isDiet ? 'text-[#9AA899] dark:text-[#9AA899] bg-[#EEF2ED] dark:bg-[#222B21] border-[#D6E0D5] dark:border-[#2C3B2A]' : 'text-[#C4A495] dark:text-[#C4A495] bg-[#F7EFEA] dark:bg-[#2D2520] border-[#E8D9D1] dark:border-[#3D302A]';
       return (
         <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title={`選擇${isDiet ? '飲食' : '運動'}項目`} onBack={() => getArrayData(targetDataForModal, category).length > 0 && setModalState({view: 'list', category, dateStr: operateDate})}>
-          {isDiet && (profile.favorites || []).length > 0 && <div className="mb-5 space-y-2"><p className="text-xs">常用食物／餐點</p>{profile.favorites.map(f => <div className="flex gap-2" key={f.id}><button className="soft-button flex-1" onClick={() => setModalState({ view: 'calc', category, item: { ...f, id: undefined }, dateStr: operateDate })}>{f.content} · {f.calories} kcal</button><button aria-label={'刪除常用餐點 ' + f.content} onClick={() => updateProfile({ favorites: profile.favorites.filter(x => x.id !== f.id) }).catch(() => {})}><Trash2 size={18}/></button></div>)}</div>}
+          {isDiet && (profile.favorites || []).length > 0 && <div className="mb-5 space-y-2"><p className="text-xs">常用食物／餐點</p>{profile.favorites.map(f => <div className="flex gap-2" key={f.id}><button className="soft-button flex-1" onClick={() => setModalState({ view: 'calc', category, item: { ...f, id: undefined }, dateStr: operateDate })}>{f.content}{hasNumber(f.calories) ? ` · ${formatNumber(f.calories)} kcal` : ''}</button><button aria-label={'刪除常用餐點 ' + f.content} onClick={() => updateProfile({ favorites: profile.favorites.filter(x => x.id !== f.id) }).catch(() => {})}><Trash2 size={18}/></button></div>)}</div>}
           <div className={`grid grid-cols-3 ${s('gap-3', 'gap-2 sm:gap-3')}`}>
             {cards.map(card => (
               <button key={card.id} onClick={() => setModalState({ view: 'calc', category, item: { [isDiet?'content':'type']: card.id === 'custom' ? '' : card.name, calories: card.defaultCalories }, dateStr: operateDate })} className={`flex flex-col items-center justify-center ${s('p-4 gap-2', 'p-3 gap-2')} rounded-2xl border bg-white dark:bg-[#1E1E1E] active:bg-gray-50 dark:active:bg-[#2A2A2A] transition-colors shadow-sm min-w-0 ${colorClass.split(' ')[2]}`}>
@@ -717,10 +717,7 @@ export default function App() {
               <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>名稱</label>
               <input name="cardName" type="text" placeholder={namePlaceholder} required className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
             </div>
-            <div>
-              <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>預設熱量 (選填)</label>
-              <input name="defaultCalories" type="number" placeholder="例如：300" className={`w-full ${s('p-3.5 text-sm', 'p-3 text-[16px] font-medium')} bg-[#F9F8F6] dark:bg-[#2A2A2A] border border-[#E8E4DF] dark:border-[#3A3A3A] rounded-xl outline-none text-[#5C5C5C] dark:text-[#D1D1D1]`} />
-            </div>
+            <NumericField name="defaultCalories" label="預設熱量（選填）"/>
             <div>
               <label className={`${s('text-[10px] mb-2', 'text-[12px] font-bold mb-2')} tracking-widest text-[#8C8477] dark:text-[#A1988B] block`}>圖標</label>
               <div className={`grid grid-cols-4 ${s('gap-2', 'gap-2')}`}>
@@ -885,30 +882,30 @@ function CalendarView({ records, viewMode: initialMode, onSelectDate, isLarge })
                         const diff = prevW ? (latestW - prevW).toFixed(2) : null;
                         let diffEl = null;
                         const iconSize = s("5", "7");
-                        const strVal = String(latestW);
+                        const strVal = formatNumber(latestW, 1);
                         const mainFontSize = strVal.length >= 5 ? s('8.5px', '10.5px') : s('11px', '14px');
 
                         if (diff !== null) {
                           const nDiff = Number(diff);
-                          const diffStr = Math.abs(nDiff).toFixed(2);
+                          const diffStr = formatNumber(Math.abs(nDiff), 1);
                           const diffLen = diffStr.length; 
                           const diffFontSize = diffLen >= 5 ? s('7.5px', '8.5px') : s('8.5px', '10px');
 
                           if (nDiff > 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#9AA899] font-bold flex items-center justify-center gap-[1px] whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 3L22 20H2L12 3Z"/></svg><span>{diffStr}</span></span>;
                           else if (nDiff < 0) diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] text-[#C78D87] dark:text-[#B86C65] font-bold flex items-center justify-center gap-[1px] whitespace-nowrap tracking-tighter`}><svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="currentColor" className="shrink-0"><path d="M12 21L2 4H22L12 21Z"/></svg><span>{diffStr}</span></span>;
-                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] text-center whitespace-nowrap tracking-tighter`}>0.00</span>;
+                          else diffEl = <span style={{ fontSize: diffFontSize }} className={`mt-[2px] font-medium text-[#C2BCB6] dark:text-[#666666] text-center whitespace-nowrap tracking-tighter`}>0</span>;
                         }
-                        cellContent = <div className="flex flex-col items-center justify-center min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-center whitespace-nowrap tracking-tighter`}>{latestW}</span>{diffEl}</div>;
+                        cellContent = <div className="flex flex-col items-center justify-center min-w-0"><span style={{ fontSize: mainFontSize }} className={`font-bold text-[#5C5C5C] dark:text-[#D1D1D1] leading-none text-center whitespace-nowrap tracking-tighter`}>{formatNumber(latestW, 1)}</span>{diffEl}</div>;
                       } else if (viewMode === 'diet') {
-                        const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        const calsLen = String(cals).length;
+                        const cals = sumNumbers(arr, r => hasNumber(r.calories) ? r.calories : r.value);
+                        const calsLen = formatNumber(cals).length;
                         const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
-                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#9AA899] text-center whitespace-nowrap tracking-tighter`}>{hasNumber(cals) ? formatNumber(cals) : '✓'}</span></div>;
                       } else if (viewMode === 'exercise') {
-                        const cals = arr.reduce((s, a) => s + (Number(a.calories ?? a.value)||0), 0);
-                        const calsLen = String(cals).length;
+                        const cals = sumNumbers(arr, r => hasNumber(r.calories) ? r.calories : r.value);
+                        const calsLen = formatNumber(cals).length;
                         const calsFontSize = calsLen >= 4 ? s('9px', '11px') : s('10px', '12px');
-                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] text-center whitespace-nowrap tracking-tighter`}>{cals > 0 ? cals : '✓'}</span></div>;
+                        cellContent = <div className="flex justify-center min-w-0"><span style={{ fontSize: calsFontSize }} className={`font-bold text-[#C4A495] text-center whitespace-nowrap tracking-tighter`}>{hasNumber(cals) ? formatNumber(cals) : '✓'}</span></div>;
                       }
                     }
 

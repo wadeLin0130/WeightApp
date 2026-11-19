@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { Camera, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from './api';
+import NumericField from './NumericField';
+import { hasNumber, sumNumbers, nutritionSummary } from './numbers';
 const emptyFood = () => ({ name: '', grams: '', calories: '', protein: '', carbs: '', fat: '' });
 const numeric = ['calories', 'protein', 'carbs', 'fat'];
 const labels = { grams: '重量 g', calories: '熱量 kcal', protein: '蛋白質 g', carbs: '碳水 g', fat: '脂肪 g' };
@@ -9,12 +11,15 @@ export default function RecordEditor({ category, item, onSave, onFavorite, onDel
   const [name, setName] = useState(item?.content || item?.type || '');
   const [image, setImage] = useState(item?.image || null);
   const [foods, setFoods] = useState(item?.items?.length ? item.items : [{ ...emptyFood(), name: item?.content || '', ...Object.fromEntries(numeric.map(k => [k, item?.[k] ?? (k === 'calories' ? item?.value ?? '' : '')])) }]);
-  const [details, setDetails] = useState({ value: item?.value ?? '', kind: item?.kind || 'cardio', duration: item?.duration || '', calories: item?.calories ?? '', weightKg: item?.weightKg || '', sets: item?.sets || '', reps: item?.reps || '', heartRate: item?.heartRate || '', notes: item?.notes || '' });
+  const [details, setDetails] = useState({ value: item?.value ?? '', kind: item?.kind || 'cardio', duration: item?.duration ?? '', calories: item?.calories ?? (exercise ? item?.value ?? '' : ''), weightKg: item?.weightKg ?? '', sets: item?.sets ?? '', reps: item?.reps ?? '', heartRate: item?.heartRate ?? '', notes: item?.notes || '' });
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [favorite, setFavorite] = useState(false);
   const fileRef = useRef(null), cameraRef = useRef(null);
-  const totals = Object.fromEntries(numeric.map(k => [k, Math.round(foods.reduce((s, f) => s + (Number(f[k]) || 0), 0) * 10) / 10]));
-  const field = (key, title, type = 'number') => <label className="field" key={key}>{title}<input type={type} min={type === 'number' ? '0' : undefined} step="any" value={details[key]} onChange={e => setDetails({ ...details, [key]: e.target.value })} /></label>;
+  const totals = Object.fromEntries(numeric.map(k => [k, sumNumbers(foods, k)]));
+  const field = (key, title, type = 'number') => type === 'number'
+    ? <NumericField key={key} label={title} value={details[key]} precision={key === 'weightKg' ? 2 : category === 'weight' && key === 'value' ? 1 : 0} onChange={value => setDetails({ ...details, [key]: value })}/>
+    : <label className="field" key={key}>{title}<input type="text" value={details[key]} onChange={e => setDetails({ ...details, [key]: e.target.value })}/></label>;
+
   async function upload(e) {
     const file = e.target.files?.[0]; if (!file) return;
     setError(''); setBusy(true);
@@ -34,7 +39,7 @@ export default function RecordEditor({ category, item, onSave, onFavorite, onDel
     e.preventDefault(); setError(''); setBusy(true);
     try {
       if ((diet || exercise) && !name.trim()) throw new Error('請輸入名稱');
-      const data = diet ? { content: name, image, items: foods.map(f => ({ ...f, ...Object.fromEntries(['grams', ...numeric].map(k => [k, Number(f[k]) || 0])) })), ...totals } : exercise ? { type: name, image, ...details } : { value: details.value };
+      const data = diet ? { content: name, image, value: undefined, items: foods.map(f => ({ ...f, ...Object.fromEntries(['grams', ...numeric].map(k => [k, hasNumber(f[k]) ? Number(f[k]) : undefined])) })), ...totals } : exercise ? { type: name, image, ...details, value: undefined } : { value: details.value };
       if (!diet && !exercise && (!details.value || Number(details.value) <= 0)) throw new Error('請輸入大於零的數值');
       await onSave(data);
       if (diet && favorite) await onFavorite({ ...data, image: null });
@@ -54,10 +59,10 @@ export default function RecordEditor({ category, item, onSave, onFavorite, onDel
       <button className="primary-button" type="button" disabled={busy || (!image && !name)} onClick={estimate}>{busy ? <Loader2 className="animate-spin" size={18}/> : null}AI 辨識</button>
       {foods.map((food, i) => <fieldset className="food-row" key={i}><legend>食物 {i + 1}</legend>
         <div className="flex gap-2"><label className="field flex-1">食物／食材<input value={food.name} onChange={e => setFoods(foods.map((f, n) => n === i ? { ...f, name: e.target.value } : f))}/></label><button type="button" aria-label={`移除食物 ${i + 1}`} disabled={foods.length === 1} onClick={() => setFoods(foods.filter((_, n) => n !== i))}><Trash2 size={18}/></button></div>
-        <div className="grid grid-cols-2 gap-2">{['grams', ...numeric].map(k => <label key={k} className="field">{labels[k]}<input type="number" min="0" max="100000" step="any" value={food[k]} onChange={e => setFoods(foods.map((f, n) => n === i ? { ...f, [k]: e.target.value } : f))}/></label>)}</div>
+        <div className="grid grid-cols-2 gap-2">{['grams', ...numeric].map(k => <NumericField key={k} label={labels[k]} value={food[k] ?? ''} onChange={value => setFoods(foods.map((f, n) => n === i ? { ...f, [k]: value } : f))}/>)}</div>
       </fieldset>)}
       <button className="soft-button w-full" type="button" onClick={() => setFoods([...foods, emptyFood()])}><Plus size={18}/>新增食材</button>
-      <p className="text-sm leading-7">整餐 {totals.calories} kcal · 蛋白質 {totals.protein} g<br/>碳水 {totals.carbs} g · 脂肪 {totals.fat} g</p>
+      {nutritionSummary(totals) && <p className="text-sm leading-7">整餐 {nutritionSummary(totals)}</p>}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={favorite} onChange={e => setFavorite(e.target.checked)}/>存為常用餐點</label>
     </>}
     {exercise && <>

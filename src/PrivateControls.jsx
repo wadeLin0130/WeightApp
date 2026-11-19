@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, download } from './api';
+import NumericField from './NumericField';
 export default function PrivateControls({ profile, onChangeSetting }) {
   const [message, setMessage] = useState(''), [busy, setBusy] = useState(false);
   const [importData, setImportData] = useState(null), [preview, setPreview] = useState(null);
@@ -7,7 +8,7 @@ export default function PrivateControls({ profile, onChangeSetting }) {
   return <>
     <section className="bg-white dark:bg-[#1E1E1E] rounded-3xl p-6 space-y-4 border border-[#E8E4DF] dark:border-[#3A3A3A]">
       <h2 className="text-sm font-medium">減脂目標</h2>
-      {[['calorieGoal', '每日熱量 kcal', 2150], ['proteinGoal', '每日蛋白質 g', 140], ['weightGoal', '階段體重 kg', 90]].map(([k, label, fallback]) => <label className="field" key={k}>{label}<input type="number" min="1" step="any" value={profile[k] ?? fallback} onChange={e => onChangeSetting({ [k]: e.target.value })}/></label>)}
+      {[['calorieGoal', '每日熱量 kcal', 2150], ['proteinGoal', '每日蛋白質 g', 140], ['weightGoal', '階段體重 kg', 90]].map(([key, label, fallback]) => <NumericField key={key} label={label} min={1} max={10000} precision={key === 'weightGoal' ? 1 : 0} value={profile[key] ?? fallback} onChange={value => onChangeSetting({ [key]: value })}/>)}
     </section>
     <section className="bg-white dark:bg-[#1E1E1E] rounded-3xl p-6 space-y-3 border border-[#E8E4DF] dark:border-[#3A3A3A]">
       <h2 className="text-sm font-medium">資料與備份</h2>

@@ -44,6 +44,12 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     assert.equal(metadata.width, 1600); assert.equal(metadata.exif, undefined);
     assert.equal((await req('/api/photos', 'POST', Buffer.from('not a photo'))).status, 400);
     assert.equal((await req('/api/days/2026-02-30', 'PUT', {})).status, 400);
+    const optional = await req('/api/days/2026-11-16', 'PUT', { exercise: [{ id: 'optional', type: '重訓', calories: 400, weightKg: null, sets: '', reps: 0 }] });
+    assert.equal(optional.status, 200);
+    assert.equal(optional.data.exercise[0].weightKg, null);
+    assert.equal(optional.data.exercise[0].sets, '');
+    assert.equal(optional.data.exercise[0].reps, 0);
+    assert.equal('duration' in optional.data.exercise[0], false);
     let day = { diet: [{ id: 'food', content: '雞胸肉', calories: 330, protein: 62, carbs: 0, fat: 7, image }], weight: [{ id: 'w', value: 95 }], water: [{ id: 'water', value: 500 }], exercise: [{ id: 'e', type: '深蹲', kind: 'strength', weightKg: 40, sets: 3, reps: 10 }] };
     let saved = await req('/api/days/2026-11-18', 'PUT', day); assert.equal(saved.status, 200); day = saved.data;
     assert.equal((await req('/api/days/2026-11-18', 'PUT', { diet: [] })).status, 409);
@@ -60,6 +66,7 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     const restored = (await req('/api/state')).data;
     assert.equal(restored.records['2026-11-18'].weight[0].value, 95);
     assert.equal(restored.records['2026-11-17'].water[0].value, 250);
+    assert.equal(restored.records['2026-11-16'].exercise[0].weightKg, null);
     assert.equal(restored.profile.calorieGoal, 2150);
     day = restored.records['2026-11-18']; day.diet = [];
     assert.equal((await req('/api/days/2026-11-18', 'PUT', day)).status, 200);
