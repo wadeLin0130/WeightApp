@@ -12,3 +12,79 @@
     background-color: #F7F5F2;
   }
 }
+
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; min-width: 0; }
+.field input, .field select, .field textarea { width: 100%; padding: 11px; border: 1px solid #d6d0c4; border-radius: 10px; background: #f9f8f6; color: #4a4a4a; font-size: 16px; min-width: 0; }
+.dark .field input, .dark .field select, .dark .field textarea { background: #2a2a2a; color: #e8e8e8; border-color: #4a4a4a; }
+.primary-button, .soft-button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; border-radius: 12px; font-size: 14px; min-height: 44px; }
+.primary-button { background: #8c8477; color: white; width: 100%; }
+.soft-button { background: #efece7; color: #5c5c5c; }
+.dark .soft-button { background: #333; color: #e8e8e8; }
+button:disabled { opacity: .5; }
+.food-row { border-top: 1px solid #d6d0c4; padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.food-row legend { font-size: 12px; padding: 4px; }
+.food-row-summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 0; cursor: pointer; list-style: none; }
+.food-row-summary::-webkit-details-marker { display: none; }
+.food-row-summary:focus-visible { outline: 2px solid #9aa899; outline-offset: 2px; border-radius: 8px; }
+.food-row-label { font-size: 12px; color: #a89f91; flex: none; }
+.food-row-name { font-size: 15px; color: #4a4a4a; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.food-row-figures { font-size: 12px; color: #8c8477; font-variant-numeric: tabular-nums; flex: none; }
+.food-row-chevron { color: #a89f91; stroke-width: 1.5; flex: none; transition: transform .18s ease; }
+.food-row[open] .food-row-chevron { transform: rotate(180deg); }
+.food-row-delete { color: #a89f91; padding: 8px; flex: none; border-radius: 10px; }
+.food-row-delete:hover:not(:disabled) { background: #efece7; }
+.food-row-detail { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.dark .food-row-name { color: #e8e8e8; }
+.dark .food-row-figures, .dark .food-row-label, .dark .food-row-chevron { color: #a1988b; }
+.dark .food-row-delete:hover:not(:disabled) { background: #333; }
+
+.numeric-trigger { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 11px; border: 1px solid #d6d0c4; border-radius: 10px; background: #f9f8f6; color: #4a4a4a; font-size: 16px; font-variant-numeric: tabular-nums; }
+.numeric-trigger svg { color: #a89f91; stroke-width: 1.5; }
+.numeric-empty { color: #aaa398; }
+.dark .numeric-trigger { background: #2a2a2a; color: #e8e8e8; border-color: #4a4a4a; }
+.numeric-trigger:focus-visible, .calculator-dialog button:focus-visible { outline: 2px solid #9aa899; outline-offset: 3px; }
+.calculator-backdrop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; justify-content: center; background: rgb(45 42 38 / .3); backdrop-filter: blur(5px); padding-top: env(safe-area-inset-top); }
+.calculator-dialog { width: 100%; max-width: 448px; max-height: 96dvh; overflow: auto; padding: 24px 24px max(24px, env(safe-area-inset-bottom)); border-radius: 28px 28px 0 0; background: #f7f5f2; color: #4a4a4a; outline: none; box-shadow: 0 -8px 40px rgb(74 64 49 / .1); }
+.dark .calculator-dialog { background: #1e1e1e; color: #e8e8e8; }
+.calculator-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 18px; }
+.calculator-header button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #efece7; color: #8c8477; }
+.dark .calculator-header button { background: #333; color: #a1988b; }
+.calculator-display { display: block; overflow-x: auto; white-space: nowrap; text-align: right; padding: 20px 16px; min-height: 84px; margin-bottom: 16px; border-radius: 18px; border: 1px solid #e8e4df; background: #fff; font-size: 32px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.dark .calculator-display { background: #2a2a2a; border-color: #3a3a3a; }
+.calculator-keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: min(12dvh, 56px); gap: 9px; }
+.calculator-keys button { display: flex; align-items: center; justify-content: center; border-radius: 14px; background: #fff; border: 1px solid #e8e4df; font-size: 23px; font-weight: 400; transition: background .15s, transform .15s; touch-action: manipulation; }
+.calculator-keys button:active { transform: scale(.96); background: #e8e4df; }
+.dark .calculator-keys button { background: #2a2a2a; border-color: #3a3a3a; }
+.calculator-keys .calculator-operator { background: #efece7; color: #8c8477; }
+.dark .calculator-keys .calculator-operator { background: #333; color: #a1988b; }
+.calculator-keys .calculator-equals { grid-row: span 2; background: #8c8477; color: #fff; font-size: 16px; border: none; }
+.dark .calculator-keys .calculator-equals { background: #a1988b; color: #121212; }
+.calculator-zero { grid-column: span 2; }
+.calculator-error { color: #a05248; font-size: 13px; margin-bottom: 12px; }
+.daily-nutrition { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; font-variant-numeric: tabular-nums; }
+.daily-nutrition-values { min-width: 0; }
+.intake-label { font-size: 12px; color: #8c8477; margin-bottom: 5px; }
+.intake-total { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; row-gap: 2px; }
+.intake-total strong { font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.035em; }
+.intake-total > span { font-size: 11px; color: #a89f91; }
+.macro-strip { display: flex; flex-wrap: wrap; gap: 3px 9px; font-size: 11px; color: #8c8477; margin-top: 9px; }
+.daily-rings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; align-items: start; }
+.nutrition-ring { width: clamp(56px, 17vw, 76px); display: flex; flex-direction: column; align-items: center; }
+.nutrition-ring-graphic { width: 100%; position: relative; aspect-ratio: 1; }
+.nutrition-ring svg { display: block; width: 100%; height: 100%; fill: none; stroke-width: 5; }
+.ring-track { stroke: #e8e4df; }
+.ring-progress { stroke-linecap: round; transition: stroke-dashoffset .25s ease; }
+.ring-protein { stroke: #8f9e89; }
+.ring-calories { stroke: #a89f91; }
+.ring-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+.ring-value { font-size: 18px; line-height: 1.05; font-weight: 500; letter-spacing: -.03em; }
+.ring-unit { font-size: 9px; line-height: 1.2; color: #a89f91; margin-top: 3px; }
+.ring-label { margin-top: 3px; font-size: 10px; line-height: 1.4; color: #8c8477; white-space: nowrap; }
+.ring-target { font-size: 9px; color: #a89f91; }
+.dark .intake-label, .dark .macro-strip, .dark .ring-label { color: #a1988b; }
+.dark .ring-track { stroke: #3a3a3a; }
+.daily-nutrition-large .intake-total strong { font-size: 30px; }
+.daily-nutrition-large .ring-value { font-size: 21px; }
+.daily-nutrition-large .ring-label { font-size: 11px; }
+@media (min-width: 640px) { .calculator-backdrop { align-items: center; padding: 20px; } .calculator-dialog { border-radius: 28px; } }
+@media (prefers-reduced-motion: reduce) { .ring-progress, .calculator-keys button { transition: none; } }
