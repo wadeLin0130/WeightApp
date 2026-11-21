@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Camera, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Camera, ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api } from './api';
 import NumericField from './NumericField';
 import { hasNumber, sumNumbers, nutritionSummary } from './numbers';
@@ -17,6 +17,19 @@ export default function RecordEditor({ category, item, initialDate, onSave, onFa
   const [favorite, setFavorite] = useState(false);
   const fileRef = useRef(null), cameraRef = useRef(null);
   const totals = Object.fromEntries(numeric.map(k => [k, sumNumbers(foods, k)]));
+  // 食材細項預設收合；只有按「新增食材」產生的新列會自動展開並聚焦。
+  const detailRefs = useRef([]);
+  const pendingOpen = useRef(false);
+  useEffect(() => {
+    if (!pendingOpen.current) return;
+    pendingOpen.current = false;
+    const el = detailRefs.current[foods.length - 1];
+    if (el) { el.open = true; el.querySelector('input')?.focus(); }
+  }, [foods.length]);
+  function addFood() {
+    pendingOpen.current = true;
+    setFoods(current => [...current, emptyFood()]);
+  }
   const field = (key, title, type = 'number') => type === 'number'
     ? <NumericField key={key} label={title} value={details[key]} precision={key === 'weightKg' ? 2 : category === 'weight' && key === 'value' ? 1 : 0} onChange={value => setDetails({ ...details, [key]: value })}/>
     : <label className="field" key={key}>{title}<input type="text" value={details[key]} onChange={e => setDetails({ ...details, [key]: e.target.value })}/></label>;
@@ -63,11 +76,20 @@ export default function RecordEditor({ category, item, initialDate, onSave, onFa
     </>}
     {diet && <>
       <button className="primary-button" type="button" disabled={busy || (!image && !name)} onClick={estimate}>{busy ? <Loader2 className="animate-spin" size={18}/> : null}AI 辨識</button>
-      {foods.map((food, i) => <fieldset className="food-row" key={i}><legend>食物 {i + 1}</legend>
-        <div className="flex gap-2"><label className="field flex-1">食物／食材<input value={food.name} onChange={e => setFoods(foods.map((f, n) => n === i ? { ...f, name: e.target.value } : f))}/></label><button type="button" aria-label={`移除食物 ${i + 1}`} disabled={foods.length === 1} onClick={() => setFoods(foods.filter((_, n) => n !== i))}><Trash2 size={18}/></button></div>
-        <div className="grid grid-cols-2 gap-2">{['grams', ...numeric].map(k => <NumericField key={k} label={labels[k]} value={food[k] ?? ''} onChange={value => setFoods(foods.map((f, n) => n === i ? { ...f, [k]: value } : f))}/>)}</div>
-      </fieldset>)}
-      <button className="soft-button w-full" type="button" onClick={() => setFoods([...foods, emptyFood()])}><Plus size={18}/>新增食材</button>
+      {foods.map((food, i) => <details className="food-row" key={i} ref={el => { detailRefs.current[i] = el; }}>
+        <summary className="food-row-summary">
+          <span className="food-row-label">食物 {i + 1}</span>
+          <span className="food-row-name">{String(food.name || '').trim() || '未命名食材'}</span>
+          <span className="food-row-figures">{[hasNumber(food.grams) ? `${food.grams} g` : null, hasNumber(food.calories) ? `${food.calories} kcal` : null].filter(Boolean).join(' · ')}</span>
+          <ChevronDown className="food-row-chevron" size={16}/>
+          <button type="button" className="food-row-delete" aria-label={`移除食物 ${i + 1}`} disabled={foods.length === 1} onClick={e => { e.preventDefault(); e.stopPropagation(); setFoods(foods.filter((_, n) => n !== i)); }}><Trash2 size={16}/></button>
+        </summary>
+        <div className="food-row-detail">
+          <label className="field">食物／食材<input value={food.name} onChange={e => setFoods(foods.map((f, n) => n === i ? { ...f, name: e.target.value } : f))}/></label>
+          <div className="grid grid-cols-2 gap-2">{['grams', ...numeric].map(k => <NumericField key={k} label={labels[k]} value={food[k] ?? ''} onChange={value => setFoods(foods.map((f, n) => n === i ? { ...f, [k]: value } : f))}/>)}</div>
+        </div>
+      </details>)}
+      <button className="soft-button w-full" type="button" onClick={addFood}><Plus size={18}/>新增食材</button>
       {nutritionSummary(totals) && <p className="text-sm leading-7">整餐 {nutritionSummary(totals)}</p>}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={favorite} onChange={e => setFavorite(e.target.checked)}/>存為常用餐點</label>
     </>}
