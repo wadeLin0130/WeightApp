@@ -448,19 +448,33 @@ export default function App() {
     }
   };
 
-  const handleSaveData = async (category, dataObj) => {
-    const operateDate = modalState?.dateStr || targetDate;
-    const currentDayData = records[operateDate] || {};
-    const arr = getArrayData(currentDayData, category);
-    let newArr;
+  const handleSaveData = async (category, dataObj, date) => {
+    const originalDate = modalState?.dateStr || targetDate;
+    const id = modalState?.item?.id;
+    const originalDay = records[originalDate] || {};
 
-    if (modalState?.item?.id) {
-      newArr = arr.map(item => item.id === modalState.item.id ? { ...item, ...dataObj } : item);
+    if (category === 'diet' && id && date !== originalDate) {
+      const original = getArrayData(originalDay, category).find(item => item.id === id);
+      if (!original) throw new Error('找不到原本的飲食紀錄');
+      setIsSyncing(true);
+      try {
+        const days = await api('/api/diet/move', {
+          method: 'POST',
+          body: JSON.stringify({ from: originalDate, to: date, revision: originalDay._revision, meal: { ...original, ...dataObj } }),
+        });
+        setRecords(prev => ({ ...prev, ...days }));
+        setSaveError('');
+      } finally { setIsSyncing(false); }
     } else {
-      newArr = [...arr, { id: crypto.randomUUID(), time: getTimeString(), ...dataObj }];
+      const day = records[date] || {};
+      const arr = getArrayData(day, category);
+      const updated = id
+        ? arr.map(item => item.id === id ? { ...item, ...dataObj } : item)
+        : [...arr, { id: crypto.randomUUID(), time: getTimeString(), ...dataObj }];
+      await updateRecords(date, { ...day, [category]: updated });
     }
-    
-    await updateRecords(operateDate, { ...currentDayData, [category]: newArr });
+
+    if (date !== originalDate && activeTab === 'home') setTargetDate(date);
     setModalState(null);
   };
 
@@ -689,9 +703,9 @@ export default function App() {
     if (view === 'calc') {
       return (
         <ModalLayout isLarge={isLarge} onClose={() => setModalState(null)} title={item?.id ? '修改紀錄' : '新增紀錄'} onBack={() => setModalState({view: (isDiet || isEx) && !item?.id ? 'select' : 'list', category, dateStr: operateDate})}>
-          <RecordEditor 
+          <RecordEditor initialDate={operateDate}
             onDelete={item?.id ? () => handleDeleteData(category, item.id).then(() => setModalState(null)) : undefined} category={category} item={item} isDiet={isDiet} isEx={isEx} isLarge={isLarge}
-            onFavorite={async data => updateProfile({ favorites: [...(profile.favorites || []), { ...data, id: crypto.randomUUID() }] })} onSave={(dataToSave) => handleSaveData(category, dataToSave)} profile={activeProfile}
+            onFavorite={async data => updateProfile({ favorites: [...(profile.favorites || []), { ...data, id: crypto.randomUUID() }] })} onSave={(dataToSave, date) => handleSaveData(category, dataToSave, date)} profile={activeProfile}
           />
         </ModalLayout>
       );

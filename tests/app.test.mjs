@@ -50,7 +50,7 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     assert.equal(optional.data.exercise[0].sets, '');
     assert.equal(optional.data.exercise[0].reps, 0);
     assert.equal('duration' in optional.data.exercise[0], false);
-    let day = { diet: [{ id: 'food', content: '雞胸肉', calories: 330, protein: 62, carbs: 0, fat: 7, image }], weight: [{ id: 'w', value: 95 }], water: [{ id: 'water', value: 500 }], exercise: [{ id: 'e', type: '深蹲', kind: 'strength', weightKg: 40, sets: 3, reps: 10 }] };
+    let day = { diet: [{ id: 'food', time: '12:30', content: '雞胸肉', calories: 330, protein: 62, carbs: 0, fat: 7, image }], weight: [{ id: 'w', value: 95 }], water: [{ id: 'water', value: 500 }], exercise: [{ id: 'e', type: '深蹲', kind: 'strength', weightKg: 40, sets: 3, reps: 10 }] };
     let saved = await req('/api/days/2026-11-18', 'PUT', day); assert.equal(saved.status, 200); day = saved.data;
     assert.equal((await req('/api/days/2026-11-18', 'PUT', { diet: [] })).status, 409);
     day.diet[0].calories = 300; saved = await req('/api/days/2026-11-18', 'PUT', day); day = saved.data; assert.equal(day.diet[0].calories, 300);
@@ -59,6 +59,19 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     assert.deepEqual((await req('/api/import', 'POST', { data: migration, preview: true })).data.conflicts, ['2026-11-18']);
     assert.equal((await req('/api/import', 'POST', { data: migration })).status, 409);
     assert.equal((await req('/api/import', 'POST', { data: migration, skipExisting: true })).data.imported, 1);
+
+    const move = { from: '2026-11-18', to: '2026-11-17', revision: day._revision, meal: { ...day.diet[0], calories: 280 } };
+    const beforeMove = (await req('/api/state')).data.records;
+    assert.equal((await req('/api/diet/move', 'POST', { ...move, to: '2026-02-30' })).status, 400);
+    assert.equal((await req('/api/diet/move', 'POST', { ...move, revision: move.revision - 1 })).status, 409);
+    assert.deepEqual((await req('/api/state')).data.records, beforeMove);
+    const moved = await req('/api/diet/move', 'POST', move);
+    assert.equal(moved.status, 200);
+    assert.deepEqual(moved.data[move.from].diet, []);
+    assert.deepEqual(moved.data[move.from].exercise, day.exercise);
+    assert.deepEqual(moved.data[move.to].diet, [...beforeMove[move.to].diet, move.meal]);
+    assert.equal((await req('/api/diet/move', 'POST', move)).status, 409);
+    assert.equal((await req('/api/days/' + move.to, 'PUT', beforeMove[move.to])).status, 409);
     assert.equal((await req('/api/ai/analyze', 'POST', { text: '蛋', model: 'test-model' })).status, 400);
     assert.equal((await req('/api/backup', 'POST')).status, 200);
     assert.ok((await readdir(join(dir, 'backups'))).length);
@@ -68,9 +81,12 @@ test('private API: identity, origin, CRUD, photos, migration, backup and restart
     assert.equal(restored.records['2026-11-17'].water[0].value, 250);
     assert.equal(restored.records['2026-11-16'].exercise[0].weightKg, null);
     assert.equal(restored.profile.calorieGoal, 2150);
-    day = restored.records['2026-11-18']; day.diet = [];
-    assert.equal((await req('/api/days/2026-11-18', 'PUT', day)).status, 200);
-    assert.equal((await req('/api/state')).data.records['2026-11-18'].diet.length, 0);
+    assert.deepEqual(restored.records[move.from].diet, []);
+    day = restored.records[move.to];
+    assert.deepEqual(day.diet.at(-1), move.meal);
+    day.diet = day.diet.filter(meal => meal.id !== move.meal.id);
+    assert.equal((await req('/api/days/' + move.to, 'PUT', day)).status, 200);
+    assert.deepEqual((await req('/api/state')).data.records[move.to].diet, beforeMove[move.to].diet);
   } finally { if (child?.exitCode === null) await stop(); await rm(dir, { recursive: true, force: true }); }
 });
 test('seven-day average uses calendar days; missing nutrition stays absent', () => {

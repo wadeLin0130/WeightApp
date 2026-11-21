@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { db, state, transaction, normalizeDay, checkDate, photo, photosDir, makeBackup } from './data.mjs';
 import { recommendationContext } from '../shared/meal-planning.mjs';
 import { analyze, models, aiStatus, recommend } from './ai.mjs';
@@ -16,6 +17,16 @@ async function body(req, limit = 16 * 1024 * 1024) {
   return Buffer.concat(chunks);
 }
 const parse = async req => JSON.parse((await body(req)).toString());
+const readDay = db.prepare('SELECT data,revision FROM days WHERE date=?');
+const upsertDay = db.prepare('INSERT INTO days VALUES(?,?,?) ON CONFLICT(date) DO UPDATE SET data=excluded.data,revision=excluded.revision');
+const revisionConflict = { error: '另一頁已修改此日紀錄，請重新載入後再試。' };
+
+function writeDay(date, day, currentRevision) {
+  const revision = currentRevision + 1;
+  upsertDay.run(date, JSON.stringify(day), revision);
+  return { ...day, _revision: revision };
+}
+
 const server = createServer(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -38,13 +49,37 @@ const server = createServer(async (req, res) => {
       const date = url.pathname.slice('/api/days/'.length); checkDate(date);
       const input = await parse(req); const day = await normalizeDay(input);
       const result = transaction(() => {
-        const existing = db.prepare('SELECT revision FROM days WHERE date=?').get(date);
-        if ((input._revision || 0) !== (existing?.revision || 0)) return null;
-        const revision = (existing?.revision || 0) + 1;
-        db.prepare('INSERT INTO days VALUES(?,?,?) ON CONFLICT(date) DO UPDATE SET data=excluded.data,revision=excluded.revision').run(date, JSON.stringify(day), revision);
-        return { ...day, _revision: revision };
+        const revision = readDay.get(date)?.revision || 0;
+        if ((input._revision || 0) !== revision) return null;
+        return writeDay(date, day, revision);
       });
-      return json(res, result ? 200 : 409, result || { error: '另一頁已修改此日紀錄，請重新載入後再試。' });
+      return json(res, result ? 200 : 409, result || revisionConflict);
+    }
+    if (url.pathname === '/api/diet/move' && req.method === 'POST') {
+      const { from, to, revision, meal } = await parse(req);
+      checkDate(from); checkDate(to);
+      if (from === to) throw new Error('請選擇不同日期');
+      const { diet: [updated] } = await normalizeDay({ diet: [meal] });
+      const result = transaction(() => {
+        const source = readDay.get(from);
+        if (!source || source.revision !== revision) return null;
+        const sourceDay = JSON.parse(source.data);
+        const original = sourceDay.diet?.find(record => record.id === updated.id);
+        if (!original) return null;
+
+        const destination = readDay.get(to);
+        const destinationDay = destination ? JSON.parse(destination.data) : {};
+        const meals = destinationDay.diet || [];
+        if (meals.length >= 500) throw new Error('目標日期的飲食紀錄已達上限');
+        const id = meals.some(record => record.id === updated.id) ? randomUUID() : updated.id;
+        destinationDay.diet = [...meals, { ...updated, id, time: original.time }];
+        sourceDay.diet = sourceDay.diet.filter(record => record.id !== updated.id);
+        return {
+          [from]: writeDay(from, sourceDay, source.revision),
+          [to]: writeDay(to, destinationDay, destination?.revision || 0),
+        };
+      });
+      return json(res, result ? 200 : 409, result || revisionConflict);
     }
     if (url.pathname === '/api/photos' && req.method === 'POST') return json(res, 201, { image: await photo(await body(req, 10 * 1024 * 1024)) });
     if (url.pathname === '/api/export' && req.method === 'GET') {

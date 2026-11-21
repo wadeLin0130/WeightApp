@@ -6,11 +6,12 @@ import { hasNumber, sumNumbers, nutritionSummary } from './numbers';
 const emptyFood = () => ({ name: '', grams: '', calories: '', protein: '', carbs: '', fat: '' });
 const numeric = ['calories', 'protein', 'carbs', 'fat'];
 const labels = { grams: '重量 g', calories: '熱量 kcal', protein: '蛋白質 g', carbs: '碳水 g', fat: '脂肪 g' };
-export default function RecordEditor({ category, item, onSave, onFavorite, onDelete, profile }) {
+export default function RecordEditor({ category, item, initialDate, onSave, onFavorite, onDelete, profile }) {
   const diet = category === 'diet', exercise = category === 'exercise';
   const [name, setName] = useState(item?.content || item?.type || '');
   const [image, setImage] = useState(item?.image || null);
   const [foods, setFoods] = useState(item?.items?.length ? item.items : [{ ...emptyFood(), name: item?.content || '', ...Object.fromEntries(numeric.map(k => [k, item?.[k] ?? (k === 'calories' ? item?.value ?? '' : '')])) }]);
+  const initialFoods = useRef(foods);
   const [details, setDetails] = useState({ value: item?.value ?? '', kind: item?.kind || 'cardio', duration: item?.duration ?? '', calories: item?.calories ?? (exercise ? item?.value ?? '' : ''), weightKg: item?.weightKg ?? '', sets: item?.sets ?? '', reps: item?.reps ?? '', heartRate: item?.heartRate ?? '', notes: item?.notes || '' });
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [favorite, setFavorite] = useState(false);
@@ -36,16 +37,21 @@ export default function RecordEditor({ category, item, onSave, onFavorite, onDel
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   async function save(e) {
-    e.preventDefault(); setError(''); setBusy(true);
+    e.preventDefault();
+    const date = diet ? new FormData(e.currentTarget).get('date') : initialDate;
+    setError(''); setBusy(true);
     try {
       if ((diet || exercise) && !name.trim()) throw new Error('請輸入名稱');
       const data = diet ? { content: name, image, value: undefined, items: foods.map(f => ({ ...f, ...Object.fromEntries(['grams', ...numeric].map(k => [k, hasNumber(f[k]) ? Number(f[k]) : undefined])) })), ...totals } : exercise ? { type: name, image, ...details, value: undefined } : { value: details.value };
       if (!diet && !exercise && (!details.value || Number(details.value) <= 0)) throw new Error('請輸入大於零的數值');
-      await onSave(data);
+      const dateOnly = diet && item?.id && date !== initialDate && foods === initialFoods.current
+        && name === (item.content || item.type || '') && image === (item.image || null);
+      await onSave(dateOnly ? {} : data, date);
       if (diet && favorite) await onFavorite({ ...data, image: null });
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   return <form className="space-y-4" onSubmit={save}>
+    {diet && <label className="field">日期<input type="date" name="date" required defaultValue={initialDate}/></label>}
     {(diet || exercise) && <>
       {diet && <>
       <input ref={fileRef} className="hidden" type="file" accept="image/*" onChange={upload} />
